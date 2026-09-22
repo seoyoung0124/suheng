@@ -1,741 +1,145 @@
 import streamlit as st
-import streamlit.components.v1 as components
+import pandas as pd
+import numpy as np
 
+# 1. 페이지 기본 설정 (와이드 레이아웃 적용)
 st.set_page_config(
-    page_title="A Dance of Fire and Ice - Professional Engine",
-    page_icon="🔥",
-    layout="centered"
+    page_title="블루투스 멀티포인트 배터리 시뮬레이터",
+    page_icon="🔋",
+    layout="wide"
 )
 
-# 스트림릿 테마 커스텀 및 가이드 스타일 정의
-st.markdown("""
-<style>
-    /* 전체 배경: 검은색과 남색 그라데이션 */
-    .stApp {
-        background: linear-gradient(135deg, #090a0f 0%, #0d1527 100%);
-        color: #ffffff;
-    }
-    h1 {
-        text-align: center;
-        background: linear-gradient(135deg, #ff3366 0%, #33ccff 100%);
-        -webkit-background-clip: text;
-        -webkit-text-fill-color: transparent;
-        font-weight: 900;
-        margin-bottom: 1.2rem;
-    }
+# 2. 사이드바 - 공통 설정 패널
+st.sidebar.header("⚙️ 스마트폰 환경 설정")
+battery_capacity = st.sidebar.slider("스마트폰 배터리 총 용량 (mAh)", 3000, 5000, 4000, 100)
+bt_version = st.sidebar.selectbox(
+    "블루투스 버전 선택",
+    ["Bluetooth 4.2", "Bluetooth 5.0", "Bluetooth 5.3 (최신)"]
+)
+
+# 블루투스 버전에 따른 전력 효율 계수 설정
+version_coefficient = {"Bluetooth 4.2": 1.4, "Bluetooth 5.0": 1.1, "Bluetooth 5.3 (최신)": 1.0}
+eff_factor = version_coefficient[bt_version]
+
+# 3. 메인 타이틀 및 소개
+st.title("🔋 블루투스 멀티포인트 연결 시 배터리 소모 예측 앱")
+st.markdown("스마트폰에 여러 블루투스 기기를 동시에 연결했을 때, 백그라운드 통신량과 기기별 부하에 따른 **배터리 잔량 감소 추이**를 시뮬레이션하는 웹 앱입니다.")
+st.markdown("---")
+
+# 4. 상단 탭(Tab) 메뉴 구성 (페이지 전환 역할)
+tab1, tab2, tab3 = st.tabs([
+    "📊 실시간 배터리 시뮬레이터", 
+    "📚 멀티포인트 기술 원리", 
+    "💡 전력 절약 가이드"
+])
+
+# ==========================================
+# [Tab 1] 실시간 배터리 소모 시뮬레이터 (메인 기능)
+# ==========================================
+with tab1:
+    st.subheader("🛠️ 연결된 블루투스 기기 설정 (멀티포인트)")
     
-    /* 선택 옵션(Selectbox) 라벨 글자색 흰색으로 변경 */
-    div[data-baseweb="select"] label, .stSelectbox label p {
-        color: #ffffff !important;
-        font-weight: 600 !important;
-        font-size: 0.95rem !important;
-    }
-
-    .guide-container {
-        background-color: rgba(17, 24, 39, 0.7);
-        border: 1px solid #1f2937;
-        border-radius: 12px;
-        padding: 12px 16px;
-        margin-bottom: 16px;
-        font-size: 0.88rem;
-        line-height: 1.5;
-        backdrop-filter: blur(4px);
-    }
-    .guide-title {
-        font-weight: bold;
-        color: #38bdf8;
-        margin-bottom: 4px;
-        display: flex;
-        align-items: center;
-        gap: 6px;
-    }
-    .guide-tiles {
-        display: flex;
-        gap: 12px;
-        margin-top: 6px;
-        flex-wrap: wrap;
-    }
-    .tile-badge {
-        background-color: #1e293b;
-        padding: 3px 8px;
-        border-radius: 6px;
-        border: 1px solid #334155;
-    }
-</style>
-""", unsafe_allow_html=True)
-
-st.title("🔥 A Dance of Fire and Ice ❄️")
-
-# 게임 설명 가이드 상자
-st.markdown("""
-<div class="guide-container">
-    <div class="guide-title">🎮 게임 이용 안내</div>
-    <div>• <b>조작 방법:</b> 행성이 다음 타일에 겹치는 순간 <b>화면을 클릭</b>하거나 <b>스페이스바/아무 키</b>를 누르세요.</div>
-    <div>• <b>특수 타일 안내:</b></div>
-    <div class="guide-tiles">
-        <span class="tile-badge"><b style="color: #ff7733;">🚀 >></b> 가속 (속도 증가 & 유지)</span>
-        <span class="tile-badge"><b style="color: #a3e635;">🐢 <<</b> 감속 (속도 감소 & 유지)</span>
-        <span class="tile-badge"><b style="color: #c084fc;">🌀 ○</b> 회전 방향 반전</span>
-    </div>
-</div>
-""", unsafe_allow_html=True)
-
-# 난이도 및 모드 설정
-col1, col2 = st.columns(2)
-with col1:
-    speed_option = st.selectbox(
-        "🎮 시작 회전 속도 (BPM / 난이도)",
-        options=[
-            "Easy (BPM 110)", 
-            "Normal (BPM 150)", 
-            "Hard (BPM 200)", 
-            "Insane (BPM 260)",
-            "Extreme (BPM 320)",
-            "Speed Demon (BPM 400)"
-        ],
-        index=1
-    )
-
-with col2:
-    tile_mode_option = st.selectbox(
-        "⚡ 속도 타일 모드",
-        options=[
-            "일반 모드 (속도 변동 없음)",
-            "특수 타일 모드 (가속/감속 포함)"
-        ],
-        index=0  # 기본값: 속도 타일 없는 일반 모드
-    )
-
-speed_map = {
-    "Easy (BPM 110)": 0.040,
-    "Normal (BPM 150)": 0.055,
-    "Hard (BPM 200)": 0.075,
-    "Insane (BPM 260)": 0.098,
-    "Extreme (BPM 320)": 0.125,
-    "Speed Demon (BPM 400)": 0.155
-}
-selected_speed = speed_map[speed_option]
-enable_speed_tiles = "true" if tile_mode_option == "특수 타일 모드 (가속/감속 포함)" else "false"
-
-game_html = f"""
-<!DOCTYPE html>
-<html>
-<head>
-    <meta charset="utf-8">
-    <style>
-        * {{ box-sizing: border-box; }}
-        body {{
-            margin: 0;
-            padding: 0;
-            background: transparent;
-            color: #ffffff;
-            font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
-            display: flex;
-            flex-direction: column;
-            align-items: center;
-            justify-content: center;
-            user-select: none;
-            overflow: hidden;
-        }}
-        #gameContainer {{
-            position: relative;
-            margin-top: 5px;
-        }}
-        #gameCanvas {{
-            border: 2px solid #1a2332;
-            border-radius: 20px;
-            background: radial-gradient(circle at center, #0f172a 0%, #060913 100%);
-            box-shadow: 0 20px 50px rgba(0, 0, 0, 0.8), 0 0 20px rgba(51, 204, 255, 0.1);
-            cursor: pointer;
-        }}
-        #info {{
-            margin-top: 12px;
-            text-align: center;
-        }}
-        .stats {{
-            font-size: 19px;
-            color: #8395a7;
-            letter-spacing: 0.5px;
-        }}
-        .stats span {{
-            color: #f8fafc;
-            font-weight: bold;
-        }}
-        .status {{
-            font-size: 24px;
-            font-weight: 800;
-            margin-top: 6px;
-            height: 36px;
-            text-shadow: 0 0 10px rgba(255,255,255,0.2);
-        }}
-        #restartBtn {{
-            display: none;
-            margin-top: 10px;
-            padding: 12px 30px;
-            font-size: 16px;
-            font-weight: bold;
-            color: #ffffff;
-            background: linear-gradient(135deg, #ff3366, #ff527b);
-            border: none;
-            border-radius: 12px;
-            cursor: pointer;
-            box-shadow: 0 6px 20px rgba(255, 51, 102, 0.4);
-            transition: all 0.2s ease;
-        }}
-        #restartBtn:hover {{
-            transform: translateY(-2px) scale(1.03);
-            box-shadow: 0 8px 25px rgba(255, 51, 102, 0.6);
-        }}
-    </style>
-</head>
-<body>
-
-<div id="gameContainer">
-    <canvas id="gameCanvas" width="680" height="390"></canvas>
-</div>
-
-<div id="info">
-    <div class="stats">점수: <span id="score">0</span> &nbsp;|&nbsp; 콤보: <span id="combo">0</span> &nbsp;|&nbsp; 최고 콤보: <span id="maxCombo">0</span></div>
-    <div id="feedback" class="status" style="color: #38bdf8;">화면을 클릭하거나 스페이스바를 누르세요!</div>
-    <button id="restartBtn" onclick="initGame()">🔄 다시 도전하기</button>
-</div>
-
-<script>
-// Canvas & Context
-const canvas = document.getElementById('gameCanvas');
-const ctx = canvas.getContext('2d');
-const scoreEl = document.getElementById('score');
-const comboEl = document.getElementById('combo');
-const maxComboEl = document.getElementById('maxCombo');
-const feedbackEl = document.getElementById('feedback');
-const restartBtn = document.getElementById('restartBtn');
-
-// Web Audio API
-const AudioContext = window.AudioContext || window.webkitAudioContext;
-let audioCtx = null;
-
-function initAudio() {{
-    if (!audioCtx) {{
-        audioCtx = new AudioContext();
-    }}
-}}
-
-function playSound(type) {{
-    if (!audioCtx) return;
+    col1, col2 = st.columns(2)
     
-    const osc = audioCtx.createOscillator();
-    const gain = audioCtx.createGain();
-    osc.connect(gain);
-    gain.connect(audioCtx.destination);
-    
-    const now = audioCtx.currentTime;
-
-    if (type === 'PERFECT') {{
-        osc.type = 'sine';
-        osc.frequency.setValueAtTime(523.25, now);
-        osc.frequency.exponentialRampToValueAtTime(1046.50, now + 0.12);
-        gain.gain.setValueAtTime(0.3, now);
-        gain.gain.exponentialRampToValueAtTime(0.001, now + 0.12);
-        osc.start(now);
-        osc.stop(now + 0.12);
-    }} else if (type === 'GREAT') {{
-        osc.type = 'triangle';
-        osc.frequency.setValueAtTime(440, now);
-        gain.gain.setValueAtTime(0.25, now);
-        gain.gain.exponentialRampToValueAtTime(0.001, now + 0.1);
-        osc.start(now);
-        osc.stop(now + 0.1);
-    }} else if (type === 'MISS') {{
-        osc.type = 'sawtooth';
-        osc.frequency.setValueAtTime(150, now);
-        osc.frequency.linearRampToValueAtTime(60, now + 0.25);
-        gain.gain.setValueAtTime(0.4, now);
-        gain.gain.exponentialRampToValueAtTime(0.001, now + 0.25);
-        osc.start(now);
-        osc.stop(now + 0.25);
-    }} else if (type === 'BEAT') {{
-        osc.type = 'sine';
-        osc.frequency.setValueAtTime(220, now);
-        gain.gain.setValueAtTime(0.05, now);
-        gain.gain.exponentialRampToValueAtTime(0.001, now + 0.05);
-        osc.start(now);
-        osc.stop(now + 0.05);
-    }}
-}}
-
-// 게임 상수 및 설정
-const R = 46; 
-const TILE_W = 62;
-const TILE_H = 36;
-const enableSpeedTiles = {enable_speed_tiles}; // 속도 타일 모드 여부
-
-// 객체 데이터 구조
-let tiles = [];
-let currentTileIdx = 0;
-let pivotPos = {{ x: 0, y: 0 }};
-let activePos = {{ x: 0, y: 0 }};
-
-// 각도 및 회전 제어
-let currentAngle = 0;
-let targetAngle = 0;
-let rotDirection = 1;
-const initialSpeedSetting = {selected_speed};
-let speedMultiplier = 1.0;
-let baseRotSpeed = initialSpeedSetting;
-
-let activePlanetType = 1; // 0: Red, 1: Blue
-
-// 카메라 & 쉐이크 제어
-let camX = 0;
-let camY = 0;
-const camLerpFactor = 0.09; 
-let shakeAmount = 0;
-let shakeDuration = 0;
-
-// 점수 및 판정
-let score = 0;
-let combo = 0;
-let maxCombo = 0;
-let gameState = "READY";
-
-// 그래픽 파티클
-let particles = [];
-let planetTrails = [];
-
-function addExplosion(x, y, color) {{
-    for (let i = 0; i < 24; i++) {{
-        const angle = Math.random() * Math.PI * 2;
-        const speed = Math.random() * 6 + 2;
-        particles.push({{
-            x: x,
-            y: y,
-            vx: Math.cos(angle) * speed,
-            vy: Math.sin(angle) * speed,
-            radius: Math.random() * 4 + 2,
-            color: color,
-            alpha: 1,
-            decay: Math.random() * 0.03 + 0.02
-        }});
-    }}
-}}
-
-function addTrail(x, y, color) {{
-    planetTrails.push({{
-        x: x,
-        y: y,
-        radius: 12,
-        color: color,
-        alpha: 0.6,
-        decay: 0.05
-    }});
-}}
-
-// 맵 생성 알고리즘
-function generateComplexMap() {{
-    tiles = [];
-    let cx = 200;
-    let cy = 200;
-    
-    const possibleDirs = [
-        {{ x: 1, y: 0 }},
-        {{ x: 1, y: 0 }},
-        {{ x: 1, y: 0 }},
-        {{ x: 0, y: 1 }},
-        {{ x: 0, y: -1 }},
-        {{ x: 1, y: 1 }},
-        {{ x: 1, y: -1 }}
-    ];
-
-    tiles.push({{ x: cx, y: cy, isSwirl: false, speedType: 'normal' }});
-    let lastDir = possibleDirs[0];
-    let specialTileCooldown = 8; 
-
-    for (let i = 0; i < 250; i++) {{
-        let d;
-        do {{
-            d = possibleDirs[Math.floor(Math.random() * possibleDirs.length)];
-        }} while (d.x === -lastDir.x && d.y === -lastDir.y);
-
-        lastDir = d;
-        cx += d.x * (2 * R);
-        cy += d.y * (2 * R);
+    with col1:
+        use_earphone = st.checkbox("무선 이어폰 (음악 스트리밍 중)", value=True)
+        earphone_codec = st.selectbox("오디오 코덱 선택", ["SBC", "AAC", "LDAC (고음질)"])
         
-        const isSwirl = Math.random() < 0.12 && i > 4;
-        let speedType = 'normal';
-
-        specialTileCooldown--;
-
-        if (enableSpeedTiles && specialTileCooldown <= 0 && !isSwirl) {{
-            const rand = Math.random();
-            if (rand < 0.30) {{
-                const typeRand = Math.random();
-                if (typeRand < 0.60) {{
-                    speedType = 'fast';
-                }} else {{
-                    speedType = 'slow';
-                }}
-                specialTileCooldown = 8;
-            }}
-        }}
-
-        tiles.push({{ x: cx, y: cy, isSwirl: isSwirl, speedType: speedType }});
-    }}
-}}
-
-function initGame() {{
-    generateComplexMap();
-    
-    currentTileIdx = 0;
-    score = 0;
-    combo = 0;
-    maxCombo = 0;
-    rotDirection = 1;
-    speedMultiplier = 1.0;
-    baseRotSpeed = initialSpeedSetting;
-    gameState = "READY";
-    shakeAmount = 0;
-    shakeDuration = 0;
-    particles = [];
-    planetTrails = [];
-
-    pivotPos = {{ x: tiles[0].x, y: tiles[0].y }};
-    camX = pivotPos.x;
-    camY = pivotPos.y;
-    
-    const nextTile = tiles[1];
-    const targetDirAngle = Math.atan2(nextTile.y - pivotPos.y, nextTile.x - pivotPos.x);
-    
-    currentAngle = targetDirAngle - Math.PI;
-    targetAngle = targetDirAngle;
-
-    activePlanetType = 1;
-    updateActivePos();
-
-    scoreEl.innerText = "0";
-    comboEl.innerText = "0";
-    maxComboEl.innerText = "0";
-    feedbackEl.innerText = "클릭하거나 아무 키나 눌러 시작하세요!";
-    feedbackEl.style.color = "#38bdf8";
-    restartBtn.style.display = "none";
-}}
-
-function updateActivePos() {{
-    activePos.x = pivotPos.x + Math.cos(currentAngle) * (2 * R);
-    activePos.y = pivotPos.y + Math.sin(currentAngle) * (2 * R);
-}}
-
-function update() {{
-    if (gameState === "PLAYING") {{
-        currentAngle += baseRotSpeed * rotDirection;
-        updateActivePos();
-
-        const curColor = activePlanetType === 1 ? '#38bdf8' : '#ff3366';
-        addTrail(activePos.x, activePos.y, curColor);
-
-        const passed = rotDirection === 1 
-            ? (currentAngle > targetAngle + 0.65) 
-            : (currentAngle < targetAngle - 0.65);
-
-        if (passed) {{
-            triggerGameOver("시간 초과! (MISS)");
-        }}
-
-        if (shakeAmount > 0 && shakeDuration === 0) {{
-            shakeAmount *= 0.88;
-        }}
-    }}
-
-    if (gameState === "GAMEOVER") {{
-        if (shakeDuration > 0) {{
-            shakeDuration--;
-            shakeAmount = (shakeDuration / 120) * 10;
-        }} else {{
-            shakeAmount = 0;
-        }}
-    }}
-}}
-
-function handleInput() {{
-    initAudio();
-
-    if (gameState === "READY") {{
-        gameState = "PLAYING";
-        feedbackEl.innerText = "START!";
-        feedbackEl.style.color = "#4ade80";
-        playSound('BEAT');
-        return;
-    }}
-
-    if (gameState === "GAMEOVER") return;
-
-    const diff = Math.abs(currentAngle - targetAngle);
-
-    if (diff < 0.32) {{
-        score += 100 + (combo * 15);
-        combo++;
-        if (combo > maxCombo) maxCombo = combo;
+        use_watch = st.checkbox("스마트워치 (헬스케어 동기화)", value=True)
         
-        feedbackEl.innerText = "PERFECT!!";
-        feedbackEl.style.color = "#4ade80";
-        shakeAmount = 4;
-        
-        const curColor = activePlanetType === 1 ? '#38bdf8' : '#ff3366';
-        addExplosion(activePos.x, activePos.y, curColor);
-        playSound('PERFECT');
-        
-        advanceToNextTile();
-    }} else if (diff < 0.58) {{
-        score += 50;
-        combo++;
-        if (combo > maxCombo) maxCombo = combo;
-        
-        feedbackEl.innerText = "GREAT";
-        feedbackEl.style.color = "#facc15";
-        shakeAmount = 2;
-        playSound('GREAT');
-        
-        advanceToNextTile();
-    }} else {{
-        triggerGameOver("타이밍 불일치! (MISS)");
-    }}
+    with col2:
+        use_keyboard = st.checkbox("블루투스 키보드 / 마우스", value=False)
+        use_gamepad = st.checkbox("블루투스 게임 패드 (고주사율)", value=False)
 
-    scoreEl.innerText = score;
-    comboEl.innerText = combo;
-    maxComboEl.innerText = maxCombo;
-}}
+    st.markdown("---")
+    st.subheader("📉 시간 경과에 따른 배터리 잔량 시뮬레이션 (12시간 기준)")
 
-function triggerGameOver(reason) {{
-    gameState = "GAMEOVER";
-    feedbackEl.innerText = `GAME OVER - ${{reason}}`;
-    feedbackEl.style.color = "#f87171";
+    # 시뮬레이션 데이터 계산 로직
+    hours = np.arange(0, 13, 1)  션 시간 (0~12시간)
     
-    shakeDuration = 120;
-    shakeAmount = 10;
+    # 기본 소모율 (화면 켜짐/기본 시스템 둥작)
+    base_drain_per_hour = 350 * (4000 / battery_capacity) 
     
-    playSound('MISS');
-    restartBtn.style.display = "inline-block";
-}}
+    # 기기별 추가 시간당 소모 전력 (mAh) 계산
+    extra_drain = 0
+    if use_earphone:
+        codec_add = {"SBC": 40, "AAC": 50, "LDAC (고음질 곡)": 80}
+        extra_drain += codec_add[earphone_codec]
+    if use_watch:
+        extra_drain += 30
+    if use_keyboard:
+        extra_drain += 15
+    if use_gamepad:
+        extra_drain += 60
 
-function advanceToNextTile() {{
-    currentTileIdx++;
-    const nextPivot = tiles[currentTileIdx];
-    if (!nextPivot) return;
-
-    if (nextPivot.isSwirl) {{
-        rotDirection *= -1;
-    }}
-
-    if (enableSpeedTiles) {{
-        if (nextPivot.speedType === 'fast') {{
-            speedMultiplier *= 1.25;
-            if (speedMultiplier > 2.2) speedMultiplier = 2.2;
-            feedbackEl.innerText = "⚡ SPEED UP!!";
-            feedbackEl.style.color = "#ff7733";
-        }} else if (nextPivot.speedType === 'slow') {{
-            speedMultiplier *= 0.8;
-            if (speedMultiplier < 0.45) speedMultiplier = 0.45;
-            feedbackEl.innerText = "🐢 SLOW DOWN..";
-            feedbackEl.style.color = "#a3e635";
-        }}
-    }}
-
-    baseRotSpeed = initialSpeedSetting * speedMultiplier;
-
-    pivotPos = {{ x: nextPivot.x, y: nextPivot.y }};
-    activePlanetType = activePlanetType === 0 ? 1 : 0;
-
-    const futureTile = tiles[currentTileIdx + 1];
-    if (futureTile) {{
-        let nextTargetDir = Math.atan2(futureTile.y - pivotPos.y, futureTile.x - pivotPos.x);
-        let angleOffset = currentAngle - targetAngle;
-
-        let diff = nextTargetDir - targetAngle;
-        while (diff < -Math.PI) diff += Math.PI * 2;
-        while (diff > Math.PI) diff -= Math.PI * 2;
-
-        if (rotDirection === 1) {{
-            targetAngle = targetAngle + (diff < 0 ? diff + Math.PI * 2 : diff);
-            currentAngle = targetAngle - Math.PI + angleOffset;
-        }} else {{
-            targetAngle = targetAngle + (diff > 0 ? diff - Math.PI * 2 : diff);
-            currentAngle = targetAngle + Math.PI + angleOffset;
-        }}
-    }}
-    updateActivePos();
-}}
-
-function draw() {{
-    ctx.clearRect(0, 0, canvas.width, canvas.height);
-
-    ctx.save();
+    # 멀티포인트 오버헤드 (기기가 늘어날수록 통신 프로토콜 유지 전력 증가)
+    active_devices_count = sum([use_earphone, use_watch, use_keyboard, use_gamepad])
+    overhead = (active_devices_count ** 1.3) * 20 if active_devices_count > 1 else 0
     
-    camX += (pivotPos.x - camX) * camLerpFactor;
-    camY += (pivotPos.y - camY) * camLerpFactor;
+    total_hourly_drain = (base_drain_per_hour + extra_drain + overhead) * eff_factor
 
-    const shakeX = (Math.random() - 0.5) * shakeAmount;
-    const shakeY = (Math.random() - 0.5) * shakeAmount;
+    # 시간별 배터리 잔량 계산 (%)
+    battery_levels = []
+    for h in hours:
+        remaining_mAh = battery_capacity - (total_hourly_drain * h)
+        remaining_pct = max(0, (remaining_mAh / battery_capacity) * 100)
+        battery_levels.append(round(remaining_pct, 1))
 
-    ctx.translate(canvas.width / 2 - camX + shakeX, canvas.height / 2 - camY + shakeY);
+    # 데이터프레임 생성 및 차트 렌더링
+    df_chart = pd.DataFrame({
+        "시간 (Hour)": hours,
+        "배터리 잔량 (%)": battery_levels
+    })
+    df_chart.set_index("시간 (Hour)", inplace=True)
 
-    // 1. 타일 연결 선
-    ctx.beginPath();
-    for (let i = 0; i < tiles.length; i++) {{
-        if (i === 0) ctx.moveTo(tiles[i].x, tiles[i].y);
-        else ctx.lineTo(tiles[i].x, tiles[i].y);
-    }}
-    ctx.strokeStyle = "rgba(255, 255, 255, 0.07)";
-    ctx.lineWidth = 8;
-    ctx.lineCap = "round";
-    ctx.lineJoin = "round";
-    ctx.stroke();
+    st.line_chart(df_chart, height=350)
 
-    // 2. 직사각형 타일 렌더링
-    for (let i = 0; i < tiles.length; i++) {{
-        const t = tiles[i];
+    # 주요 지표 요약 (Metric)
+    m_col1, m_col2, m_col3 = st.columns(3)
+    
+    # 방전될 때까지 걸리는 예상 시간 계산
+    zero_indices = [i for i, val in enumerate(battery_levels) if val == 0]
+    if zero_indices:
+        estimated_hours = zero_indices[0]
+        life_str = f"약 {estimated_hours}시간"
+    else:
+        life_str = "12시간 이상 유지"
         
-        ctx.save();
-        ctx.translate(t.x, t.y);
+    m_col1.metric("동시 연결 기기 수", f"{active_devices_count}개")
+    m_col2.metric("시간당 예상 소모 전력", f"{int(total_hourly_drain)} mAh/h")
+    m_col3.metric("예상 최대 사용 가능 시간", life_str)
 
-        ctx.beginPath();
-        ctx.roundRect(-TILE_W / 2, -TILE_H / 2, TILE_W, TILE_H, 8);
 
-        if (i < currentTileIdx) {{
-            ctx.fillStyle = "rgba(255, 255, 255, 0.08)";
-            ctx.strokeStyle = "rgba(255, 255, 255, 0.1)";
-        }} else if (i === currentTileIdx + 1) {{
-            ctx.fillStyle = "#fbbf24";
-            ctx.strokeStyle = "#ffffff";
-            ctx.shadowColor = "#fbbf24";
-            ctx.shadowBlur = 18;
-        }} else if (i === currentTileIdx) {{
-            ctx.fillStyle = "rgba(255, 255, 255, 0.3)";
-            ctx.strokeStyle = "#ffffff";
-        }} else {{
-            if (t.speedType === 'fast') {{
-                ctx.fillStyle = "#9a3412";
-                ctx.strokeStyle = "#ff7733";
-            }} else if (t.speedType === 'slow') {{
-                ctx.fillStyle = "#3f6212";
-                ctx.strokeStyle = "#a3e635";
-            }} else {{
-                ctx.fillStyle = "#1e293b";
-                ctx.strokeStyle = "#334155";
-            }}
-        }}
+# ==========================================
+# [Tab 2] 멀티포인트 기술 원리 및 분석 리포트
+# ==========================================
+with tab2:
+    st.subheader("📖 멀티포인트(Multipoint) 통신 원리")
+    st.markdown("""
+    * **블루투스 피코넷(Piconet):** 하나의 마스터 기기(스마트폰)가 여러 슬레이브 기기(이어폰, 워치 등)와 동시에 연결을 유지하는 네트워크 구조입니다.
+    * **패킷 교환 주기 (Polling Interval):** 기기가 많아질수록 스마트폰의 블루투스 칩셋이 각 기기와 데이터를 주고받기 위해 인터럽트와 폴링 주기를 바쁘게 오가며 **오버헤드(Overhead)**가 발생합니다.
+    * **버전별 효율 차이:** 블루투스 5.0 이상부터는 저에너지(BLE) 기술과 데이터 전송 효율이 개선되어 동일한 멀티포인트 환경에서도 전력 소모가 줄어듭니다.
+    """)
+    
+    st.info("💡 **생기부 작성 팁:** 이 시뮬레이터는 기기 개수 증가에 따른 지수 함수적 부하 증가 모델을 적용하여 백그라운드 전력 소모의 상관관계를 분석했습니다.")
 
-        ctx.lineWidth = 2;
-        ctx.fill();
-        ctx.stroke();
 
-        // Swirl 아이콘
-        if (t.isSwirl && i >= currentTileIdx) {{
-            ctx.beginPath();
-            ctx.arc(0, 0, 8, 0, Math.PI * 2);
-            ctx.strokeStyle = "#c084fc";
-            ctx.lineWidth = 3;
-            ctx.stroke();
-        }}
-
-        // 속도 변경 아이콘
-        if (i >= currentTileIdx) {{
-            if (t.speedType === 'fast') {{
-                ctx.fillStyle = "#ffaa00";
-                ctx.font = "bold 14px sans-serif";
-                ctx.textAlign = "center";
-                ctx.textBaseline = "middle";
-                ctx.fillText(">>", 0, 0);
-            }} else if (t.speedType === 'slow') {{
-                ctx.fillStyle = "#bef264";
-                ctx.font = "bold 14px sans-serif";
-                ctx.textAlign = "center";
-                ctx.textBaseline = "middle";
-                ctx.fillText("<<", 0, 0);
-            }}
-        }}
-
-        ctx.restore();
-    }}
-
-    // 3. 잔상 트레일
-    for (let i = planetTrails.length - 1; i >= 0; i--) {{
-        const pt = planetTrails[i];
-        ctx.beginPath();
-        ctx.arc(pt.x, pt.y, pt.radius, 0, Math.PI * 2);
-        ctx.fillStyle = pt.color;
-        ctx.globalAlpha = pt.alpha;
-        ctx.fill();
-        ctx.globalAlpha = 1.0;
-
-        pt.radius *= 0.94;
-        pt.alpha -= pt.decay;
-        if (pt.alpha <= 0) planetTrails.splice(i, 1);
-    }}
-
-    const redPos = activePlanetType === 1 ? pivotPos : activePos;
-    const bluePos = activePlanetType === 1 ? activePos : pivotPos;
-
-    // 4. 행성 축 연결선
-    ctx.beginPath();
-    ctx.moveTo(redPos.x, redPos.y);
-    ctx.lineTo(bluePos.x, bluePos.y);
-    ctx.strokeStyle = "rgba(255, 255, 255, 0.6)";
-    ctx.lineWidth = 4;
-    ctx.stroke();
-
-    // 5. 불 행성
-    ctx.beginPath();
-    ctx.arc(redPos.x, redPos.y, 14, 0, Math.PI * 2);
-    ctx.fillStyle = "#ff3366";
-    ctx.shadowColor = "#ff3366";
-    ctx.shadowBlur = activePlanetType === 0 ? 20 : 8;
-    ctx.fill();
-
-    // 6. 얼음 행성
-    ctx.beginPath();
-    ctx.arc(bluePos.x, bluePos.y, 14, 0, Math.PI * 2);
-    ctx.fillStyle = "#38bdf8";
-    ctx.shadowColor = "#38bdf8";
-    ctx.shadowBlur = activePlanetType === 1 ? 20 : 8;
-    ctx.fill();
-
-    // 7. 폭발 파티클
-    for (let i = particles.length - 1; i >= 0; i--) {{
-        const p = particles[i];
-        ctx.beginPath();
-        ctx.arc(p.x, p.y, p.radius, 0, Math.PI * 2);
-        ctx.fillStyle = p.color;
-        ctx.globalAlpha = p.alpha;
-        ctx.fill();
-        ctx.globalAlpha = 1.0;
-
-        p.x += p.vx;
-        p.y += p.vy;
-        p.alpha -= p.decay;
-        if (p.alpha <= 0) particles.splice(i, 1);
-    }}
-
-    ctx.restore();
-}}
-
-function loop() {{
-    update();
-    draw();
-    requestAnimationFrame(loop);
-}}
-
-window.addEventListener('keydown', (e) => {{
-    if (e.code === 'Space' || e.key !== '') {{
-        handleInput();
-    }}
-}});
-
-canvas.addEventListener('mousedown', handleInput);
-
-initGame();
-loop();
-</script>
-</body>
-</html>
-"""
-
-components.html(game_html, height=580)
+# ==========================================
+# [Tab 3] 스마트한 블루투스 전력 절약 가이드
+# ==========================================
+with tab3:
+    st.subheader("💡 맞춤형 전력 절약 피드백")
+    
+    if active_devices_count >= 3:
+        st.error("⚠️ **주의:** 현재 3개 이상의 블루투스 기기가 동시에 연결되어 있습니다. 스마트폰 배터리 소모 속도가 평소보다 훨씬 빠릅니다.")
+    elif active_devices_count == 0:
+        st.warning("⚠️ 연결된 블루투스 기기가 없습니다. 시뮬레이터를 위해 기기를 체크해 보세요!")
+    else:
+        st.success("✨ **안전:** 적절한 수의 블루투스 기기가 연결되어 있어 효율적인 전력 관리가 가능합니다.")
+        
+    st.markdown("""
+    ### 🔋 배터리 수명을 지키는 3가지 팁
+    1. **미사용 기기 연결 해제:** 사용하지 않는 스마트워치나 키보드는 백그라운드 연결을 끊어두세요.
+    2. **고음질 코덱 조절:** 대중교통 등 소음이 심한 곳에서는 전력 소모가 큰 고음질 코덱(LDAC 등) 대신 표준 코덱을 사용하는 것이 유리합니다.
+    3. **최신 블루투스 버전 유지:** 가급적 블루투스 5.0 이상을 지원하는 주변 기기를 사용하는 것이 전력 효율에 도움을 줍니다.
+    """)
