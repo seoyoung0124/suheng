@@ -247,7 +247,7 @@ with col_side:
   else:
     st.success("➕ **[신규 등록 모드]** 새로운 일정을 입력하세요.")
 
-  with st.form(key="oauth_event_form", clear_submit_after=not is_editing):
+ with st.form(key="oauth_event_form", clear_on_submit=not is_editing):
     d_title = cur_event["title"] if is_editing else ""
     d_desc = cur_event["description"] if is_editing else ""
 
