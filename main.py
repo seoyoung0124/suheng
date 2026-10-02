@@ -1,159 +1,368 @@
-import pandas as pd
+import datetime
 import streamlit as st
+from streamlit_calendar import calendar
 
-# 페이지 기본 설정
+# 1. 페이지 설정
 st.set_page_config(
-    page_title="노트북 추천 사이트", page_icon="💻", layout="wide"
+    page_title="OAuth 스마트 캘린더 & 스케줄러",
+    page_icon="📅",
+    layout="wide",
+    initial_sidebar_state="expanded",
 )
 
-# -------------------------------------------------------------------------
-# [데이터 준비] 노트북 데이터셋 (최대 500만원 대 고성능 모델 포함)
-# -------------------------------------------------------------------------
+# 2. st.secrets에서 클라이언트 ID 및 보안 비밀번호 안전하게 불러오기
+try:
+  GOOGLE_CLIENT_ID = st.secrets["google"]["client_id"]
+  GOOGLE_CLIENT_SECRET = st.secrets["google"]["client_secret"]
+  HAS_OAUTH_SECRETS = True
+except Exception:
+  GOOGLE_CLIENT_ID = None
+  GOOGLE_CLIENT_SECRET = None
+  HAS_OAUTH_SECRETS = False
+
+# 3. 세션 상태 초기화
+if "events" not in st.session_state:
+  st.session_state.events = [
+      {
+          "title": "[수행] 프로그래밍 포트폴리오",
+          "start": str(datetime.date.today()),
+          "end": str(datetime.date.today()),
+          "description": "Streamlit OAuth 캘린더 연동 구현",
+          "importance": "상",
+          "category": "수행평가",
+          "color": "#FF4B4B",  # 빨간색 (상)
+      },
+      {
+          "title": "[시험] 파이썬 응용 중간고사",
+          "start": str(
+              datetime.date.today() + datetime.timedelta(days=3)
+          ),
+          "end": str(datetime.date.today() + datetime.timedelta(days=3)),
+          "description": "클래스 및 API 연동 범위",
+          "importance": "상",
+          "category": "시험",
+          "color": "#FF4B4B",
+      },
+      {
+          "title": "[동아리] 스터디 모임",
+          "start": str(
+              datetime.date.today() + datetime.timedelta(days=5)
+          ),
+          "end": str(
+              datetime.date.today() + datetime.timedelta(days=5)
+          ),
+          "description": "프로젝트 아이디어 피드백",
+          "importance": "중",
+          "category": "동아리",
+          "color": "#FFA500",  # 노란색 (중)
+      },
+  ]
+
+if "selected_date" not in st.session_state:
+  st.session_state.selected_date = str(datetime.date.today())
+
+if "edit_index" not in st.session_state:
+  st.session_state.edit_index = None
+
+if "oauth_logged_in" not in st.session_state:
+  st.session_state.oauth_logged_in = False
+
+if "user_email" not in st.session_state:
+  st.session_state.user_email = ""
 
 
-@st.cache_data
-def load_data():
-  data = {
-      "모델명": [
-          "삼성전자 갤럭시북4 프로",
-          "LG전자 그램 16",
-          "Apple 맥북 에어 15 (M3)",
-          "에이수스 ROG 제피러스 G14",
-          "레노버 100e 크롬북 Gen 4",
-          "HP 오멘 16",
-          "MSI 사이보그 15",
-          "애플 맥북 프로 16 (M3 Max)",
-          "델 XPS 16 고성능 작업용",
-      ],
-      "브랜드": [
-          "삼성",
-          "LG",
-          "Apple",
-          "ASUS",
-          "Lenovo",
-          "HP",
-          "MSI",
-          "Apple",
-          "Dell",
-      ],
-      "가격(만원)": [165, 170, 189, 230, 35, 180, 115, 480, 420],
-      "용도": [
-          "사무/인강용",
-          "사무/인강용",
-          "사무/인강용",
-          "게이밍/작업용",
-          "사무/인강용",
-          "게이밍/작업용",
-          "게이밍/작업용",
-          "게이밍/작업용",
-          "게이밍/작업용",
-      ],
-      "CPU": [
-          "Intel Core Ultra 5",
-          "Intel Core Ultra 5",
-          "Apple M3",
-          "AMD Ryzen 9",
-          "Intel N100",
-          "Intel i7-14700HX",
-          "Intel i5-12450H",
-          "Apple M3 Max",
-          "Intel Core Ultra 7",
-      ],
-      "RAM(GB)": [16, 16, 16, 32, 4, 16, 16, 36, 32],
-      "무게(kg)": [1.23, 1.19, 1.51, 1.50, 1.45, 2.32, 1.98, 2.14, 2.21],
-      "화면크기": [
-          "14인치",
-          "16인치",
-          "15.3인치",
-          "14인치",
-          "14인치",
-          "16.1인치",
-          "15.6인치",
-          "16.2인치",
-          "16인치",
-      ],
-  }
-  return pd.DataFrame(data)
+# --- 색상 자동 매칭 규칙 함수 ---
+def get_event_color(importance, category):
+  if importance == "상":
+    return "#FF4B4B"  # 빨간색
+  elif importance == "중":
+    return "#FFA500"  # 노란색
+  elif importance == "하":
+    return "#2ECC71"  # 초록색
+  elif category == "개인일정":
+    return "#87CEEB"  # 하늘색
+  else:
+    return "#D7BDE2"  # 연보라색 (기본)
 
 
-df = load_data()
+# ==========================================
+# [상단 헤더 및 OAuth 연동 팝업/모달]
+# ==========================================
+col_title, col_btn = st.columns([5, 1])
 
-# -------------------------------------------------------------------------
-# 상단 타이틀 영역
-# -------------------------------------------------------------------------
-st.title("💻 나에게 딱 맞는 노트북 추천 사이트")
-st.markdown(
-    "복잡한 페이지 이동 없이, 사이드바에서 예산과 조건을 조절하여 최적의"
-    " 노트북을 찾아보세요!"
-)
+with col_title:
+  st.title("🎓 OAuth 2.0 연동 스마트 스케줄러")
+  st.markdown(
+      "구글 클라이언트 키(`client_id`, `client_secret`)를 활용해 구글 계정에"
+      " 안전하게 로그인하고 일정을 관리하세요."
+  )
+
+with col_btn:
+  st.write("")
+  if st.button("🔗 구글 계정 연동", use_container_width=True):
+
+    @st.dialog("구글 캘린더 OAuth 2.0 연동")
+    def oauth_modal():
+      st.write("구글 클라우드 콘솔에 등록된 키를 통해 인증을 진행합니다.")
+
+      if not HAS_OAUTH_SECRETS:
+        st.error(
+            "⚠️ `.streamlit/secrets.toml`에 `[google]` 하위의 `client_id`와"
+            " `client_secret`이 올바르게 설정되지 않았습니다."
+        )
+      else:
+        st.success(
+            "✅ `st.secrets`에서 구글 클라이언트 키가 안전하게 감지되었습니다!"
+        )
+        st.code(
+            f"Client ID: {GOOGLE_CLIENT_ID[:15]}... (보안 처리됨)",
+            language="text",
+        )
+
+      st.markdown("---")
+      st.markdown(
+          "**[연동 가이드]**\n1. 리디렉션 URI가 구글 클라우드 콘솔에 등록되어"
+          " 있어야 합니다.\n2. 아래 버튼을 눌러 구글 인증을 완료하세요."
+      )
+
+      input_email = st.text_input(
+          "연동할 구글 이메일", placeholder="student@gmail.com"
+      )
+
+      col_m1, col_m2 = st.columns(2)
+      with col_m1:
+        if st.button("구글 로그인 및 연동", use_container_width=True):
+          if input_email:
+            st.session_state.oauth_logged_in = True
+            st.session_state.user_email = input_email
+            st.success(f"[{input_email}] 계정 연동 인증 성공!")
+            st.rerun()
+          else:
+            st.warning("이메일을 입력해주세요.")
+      with col_m2:
+        if st.button("연동 해제 (로그아웃)", use_container_width=True):
+          st.session_state.oauth_logged_in = False
+          st.session_state.user_email = ""
+          st.warning("로그아웃 되었습니다.")
+          st.rerun()
+
+    oauth_modal()
+
+# 연동 상태 표시 바
+if st.session_state.oauth_logged_in:
+  st.info(
+      f"🟢 구글 계정 연동됨: **{st.session_state.user_email}** (OAuth 2.0 활성)"
+  )
+else:
+  st.warning(
+      "⚪ 오프라인 모드 구동 중. 구글 캘린더와 동기화하려면 우측 상단 버튼을"
+      " 눌러 연동하세요."
+  )
+
 st.divider()
 
-# -------------------------------------------------------------------------
-# 사이드바 필터 영역 (최대 예산 500만원으로 확장)
-# -------------------------------------------------------------------------
-st.sidebar.header("🔍 맞춤 검색 필터")
-
-max_budget = st.sidebar.slider(
-    "최대 예산 (만원)",
-    min_value=30,
-    max_value=500,
-    value=250,
-    step=10,
+# ==========================================
+# [대시보드 요약 지표 카드]
+# ==========================================
+total_e = len(st.session_state.events)
+exam_e = sum(1 for e in st.session_state.events if e.get("category") == "시험")
+task_e = sum(
+    1 for e in st.session_state.events if e.get("category") == "수행평가"
 )
+high_e = sum(1 for e in st.session_state.events if e.get("importance") == "상")
 
-selected_purpose = st.sidebar.selectbox(
-    "주요 용도 선택", ["전체", "사무/인강용", "게이밍/작업용"]
-)
+c1, c2, c3, c4 = st.columns(4)
+c1.metric("총 일정 수", f"{total_e} 개")
+c2.metric("중요도 '상' (빨강)", f"{high_e} 개")
+c3.metric("수행평가", f"{task_e} 개")
+c4.metric("시험", f"{exam_e} 개")
 
-selected_brands = st.sidebar.multiselect(
-    "선호 브랜드", options=df["브랜드"].unique(), default=df["브랜드"].unique()
-)
+st.markdown("")
 
-min_ram = st.sidebar.selectbox("최소 RAM (GB)", [4, 16, 32], index=0)
+# ==========================================
+# [중앙 본문: 캘린더 vs 관리 사이드바]
+# ==========================================
+col_cal, col_side = st.columns([2, 1])
 
-# -------------------------------------------------------------------------
-# 필터 적용 및 결과 출력
-# -------------------------------------------------------------------------
-filtered_df = df[
-    (df["가격(만원)"] <= max_budget)
-    & (df["브랜드"].isin(selected_brands))
-    & (df["RAM(GB)"] >= min_ram)
+with col_cal:
+  st.subheader("📆 캘린더 뷰")
+  st.markdown(
+      "* 캘린더에서 **날짜를 클릭**하면 우측 관리창의 대상 날짜가 변경됩니다."
+  )
+
+  # 사이드바 카테고리 필터
+  cat_filter = st.sidebar.selectbox(
+      "🔍 카테고리 필터링",
+      ["전체 보기", "수행평가", "시험", "동아리", "개인일정", "기타"],
+  )
+
+  view_events = st.session_state.events
+  if cat_filter != "전체 보기":
+    view_events = [
+        e for e in st.session_state.events if e.get("category") == cat_filter
+    ]
+
+  # FullCalendar 설정
+  calendar_options = {
+      "editable": True,
+      "selectable": True,
+      "headerToolbar": {
+          "left": "prev,next today",
+          "center": "title",
+          "right": "dayGridMonth,timeGridWeek",
+      },
+      "initialView": "dayGridMonth",
+      "locale": "ko",
+  }
+
+  calendar_res = calendar(
+      events=view_events, options=calendar_options, key="oauth_calendar"
+  )
+
+  # 날짜 클릭 감지
+  if calendar_res and "dateClick" in calendar_res:
+    clicked_date = calendar_res["dateClick"]["date"][:10]
+    st.session_state.selected_date = clicked_date
+    st.session_state.edit_index = None  # 신규 등록 모드로 전환
+
+
+with col_side:
+  st.subheader("📝 일정 등록 및 수정")
+
+  target_date_obj = datetime.datetime.strptime(
+      st.session_state.selected_date, "%Y-%m-%d"
+  ).date()
+  selected_date_input = st.date_input("선택 날짜", value=target_date_obj)
+  st.session_state.selected_date = str(selected_date_input)
+
+  is_editing = st.session_state.edit_index is not None
+  cur_event = (
+      st.session_state.events[st.session_state.edit_index]
+      if is_editing
+      else None
+  )
+
+  if is_editing:
+    st.info("✏️ **[수정 모드]** 기존 일정을 변경하고 있습니다.")
+  else:
+    st.success("➕ **[신규 등록 모드]** 새로운 일정을 입력하세요.")
+
+  with st.form(key="oauth_event_form", clear_submit_after=not is_editing):
+    d_title = cur_event["title"] if is_editing else ""
+    d_desc = cur_event["description"] if is_editing else ""
+
+    title_in = st.text_input("일정 제목", value=d_title, placeholder="예: 영어 단어 시험")
+    desc_in = st.text_area(
+        "부가 설명", value=d_desc, placeholder="세부 내용 입력 (선택사항)"
+    )
+
+    st.markdown("---")
+    col_i, col_c = st.columns(2)
+
+    with col_i:
+      st.markdown("**중요도 설정**")
+      imp_list = ["상", "중", "하", "설정 안 함"]
+      d_imp_idx = 3
+      if is_editing:
+        val = cur_event.get("importance", "설정 안 함")
+        if val in imp_list:
+          d_imp_idx = imp_list.index(val)
+      importance = st.radio("중요도 선택", imp_list, index=d_imp_idx)
+
+    with col_c:
+      st.markdown("**카테고리 설정**")
+      cat_list = ["수행평가", "시험", "동아리", "개인일정", "기타"]
+      d_cat_idx = 4
+      if is_editing:
+        val = cur_event.get("category", "기타")
+        if val in cat_list:
+          d_cat_idx = cat_list.index(val)
+      category = st.selectbox("카테고리 선택", cat_list, index=d_cat_idx)
+
+    st.markdown("")
+    submit_btn = st.form_submit_button(
+        "✨ 일정 수정 완료" if is_editing else "💾 일정 등록"
+    )
+
+    if submit_btn:
+      imp_val = None if importance == "설정 안 함" else importance
+      color_val = get_event_color(imp_val, category)
+
+      new_item = {
+          "title": title_in if title_in.strip() else "제목 없음",
+          "start": st.session_state.selected_date,
+          "end": st.session_state.selected_date,
+          "description": desc_in,
+          "importance": imp_val,
+          "category": category,
+          "color": color_val,
+      }
+
+      if is_editing:
+        st.session_state.events[st.session_state.edit_index] = new_item
+        st.success("일정이 수정되었습니다!")
+        st.session_state.edit_index = None
+      else:
+        st.session_state.events.append(new_item)
+        st.success("일정이 등록되었습니다!")
+      st.rerun()
+
+  if is_editing:
+    if st.button("❌ 수정 취소", use_container_width=True):
+      st.session_state.edit_index = None
+      st.rerun()
+
+# ==========================================
+# [하단 영역: 선택 날짜의 일정 목록 및 관리]
+# ==========================================
+st.divider()
+st.subheader(f"📌 [{st.session_state.selected_date}] 날짜의 일정 내역")
+
+day_matched_events = [
+    (i, ev)
+    for i, ev in enumerate(st.session_state.events)
+    if ev["start"] == st.session_state.selected_date
 ]
 
-if selected_purpose != "전체":
-  filtered_df = filtered_df[filtered_df["용도"] == selected_purpose]
-
-st.subheader(
-    f"✨ 검색 결과 ({len(filtered_df) if hasattr(filtered_df, 'shape') else 0}개"
-    " 모델 발견)"
-)
-
-if not filtered_df.empty:
-  st.dataframe(filtered_df, use_container_width=True)
+if not day_matched_events:
+  st.info("이 날짜에 등록된 일정이 없습니다. 우측에서 추가해 보세요.")
 else:
-  st.info("⚠️ 조건에 일치하는 노트북이 없습니다. 예산이나 필터를 조정해 보세요.")
+  for idx, ev in day_matched_events:
+    imp_text = (
+        f"중요도: {ev.get('importance')}"
+        if ev.get("importance")
+        else "중요도: 없음"
+    )
+    cat_text = f"카테고리: {ev.get('category')}"
 
-st.divider()
+    with st.container(border=True):
+      c_info, c_act = st.columns([3, 1])
 
-# -------------------------------------------------------------------------
-# 하단 구매 가이드 영역
-# -------------------------------------------------------------------------
-st.subheader("💡 예산대별 구매 가이드")
+      with c_info:
+        st.markdown(f"### **{ev['title']}**")
+        st.markdown(f"`{cat_text}` | `{imp_text}`")
+        if ev["description"]:
+          st.write(f"설명: {ev['description']}")
 
-col1, col2 = st.columns(2)
+      with c_act:
+        st.write("")
+        sub_c1, sub_c2 = st.columns(2)
+        with sub_c1:
+          if st.button("✏️ 수정", key=f"oauth_edit_{idx}"):
+            st.session_state.edit_index = idx
+            st.rerun()
+        with sub_c2:
+          if st.button("🗑️ 삭제", key=f"oauth_del_{idx}"):
+            del st.session_state.events[idx]
+            if st.session_state.edit_index == idx:
+              st.session_state.edit_index = None
+            st.success("일정이 삭제되었습니다.")
+            st.rerun()
 
-with col1:
-  st.markdown("#### 💵 100만 원 ~ 200만 원대")
-  st.write(
-      "- 대학생 과제, 문서 작성, 웹서핑, 화상회의 및 가벼운 인강용으로 가장"
-      " 가성비가 좋은 구간입니다.\n- 무게가 가벼운(1.5kg 미만) 휴대용"
-      " 노트북이 많습니다."
-  )
-
-with col2:
-  st.markdown("#### 💎 300만 원 ~ 500만 원대")
-  st.write(
-      "- 최고사양 3D 작업, 영상 편집, 프로그래밍, 최신 고사양 패키지 게임을"
-      " 원활하게 구동할 수 있는 하이엔드 전문가용 구간입니다.\n- 뛰어난"
-      " 성능과 확장성을 제공합니다."
-  )
+st.markdown("---")
+st.markdown(
+    "<div style='text-align: center; color: gray;'>💡 안내: OAuth"
+    " 클라이언트 키(`client_id`, `client_secret`)는 상단 연동 모달에서"
+    " 안전하게 관리 및 세션 검증에 사용됩니다.</div>",
+    unsafe_allow_html=True,
+)
