@@ -30,7 +30,7 @@ if "events" not in st.session_state:
           "description": "Streamlit OAuth 캘린더 연동 구현",
           "importance": "상",
           "category": "수행평가",
-          "color": "#FF4B4B",  # 빨간색 (상)
+          "color": "#FF4B4B",
       },
       {
           "title": "[시험] 파이썬 응용 중간고사",
@@ -54,7 +54,7 @@ if "events" not in st.session_state:
           "description": "프로젝트 아이디어 피드백",
           "importance": "중",
           "category": "동아리",
-          "color": "#FFA500",  # 노란색 (중)
+          "color": "#FFA500",
       },
   ]
 
@@ -114,16 +114,6 @@ with col_btn:
         st.success(
             "✅ `st.secrets`에서 구글 클라이언트 키가 안전하게 감지되었습니다!"
         )
-        st.code(
-            f"Client ID: {GOOGLE_CLIENT_ID[:15]}... (보안 처리됨)",
-            language="text",
-        )
-
-      st.markdown("---")
-      st.markdown(
-          "**[연동 가이드]**\n1. 리디렉션 URI가 구글 클라우드 콘솔에 등록되어"
-          " 있어야 합니다.\n2. 아래 버튼을 눌러 구글 인증을 완료하세요."
-      )
 
       input_email = st.text_input(
           "연동할 구글 이메일", placeholder="student@gmail.com"
@@ -223,7 +213,7 @@ with col_cal:
   if calendar_res and "dateClick" in calendar_res:
     clicked_date = calendar_res["dateClick"]["date"][:10]
     st.session_state.selected_date = clicked_date
-    st.session_state.edit_index = None  # 신규 등록 모드로 전환
+    st.session_state.edit_index = None
 
 
 with col_side:
@@ -247,7 +237,7 @@ with col_side:
   else:
     st.success("➕ **[신규 등록 모드]** 새로운 일정을 입력하세요.")
 
- with st.form(key="oauth_event_form", clear_on_submit=not is_editing):
+  with st.form(key="oauth_event_form", clear_on_submit=not is_editing):
     d_title = cur_event["title"] if is_editing else ""
     d_desc = cur_event["description"] if is_editing else ""
 
