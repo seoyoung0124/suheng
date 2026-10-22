@@ -56,7 +56,7 @@ def get_color(priority, category):
     2. 중요도 '중': 노란색 (#FFC107)
     3. 중요도 '하': 초록색 (#28A745)
     4. 개인일정: 하늘색 (#17A2B8)
-    5. 지정 없음: 연보라색 (#9C27B0 / #B39DDB)
+    5. 지정 없음: 연보라색 (#B39DDB)
     """
     if priority == "상":
         return "#FF4B4B"
@@ -84,7 +84,8 @@ def manage_event_dialog():
         st.subheader("📌 일정 상세보기")
         props = event_data.get("extendedProps", {})
         
-        st.write(**제목:** {event_data.get('title', '제목 없음')}`)
+        # 문법 오류 수정 완료부
+        st.markdown(f"**제목:** {event_data.get('title', '제목 없음')}")
         st.write(f"📅 **날짜:** {event_data.get('start')}")
         st.write(f"🏷️ **카테고리:** {props.get('category', '미선택')}")
         st.write(f"🚨 **중요도:** {props.get('priority', '미선택')}")
