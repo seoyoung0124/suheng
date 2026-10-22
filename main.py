@@ -105,4 +105,23 @@ def get_color(priority, category):
         return "#FFC107"
     elif priority == "하":
         return "#28A745"
-    elif category == "
+    elif category == "개인일정":
+        return "#17A2B8"
+    else:
+        return "#9C27B0"
+
+# ---------------------------------------------------------
+# 4. 일정 추가/수정/삭제 대화상자 (Modal)
+# ---------------------------------------------------------
+@st.dialog("📋 일정 등록 / 상세 관리")
+def manage_event_dialog():
+    mode = st.session_state.dialog_mode
+    event_data = st.session_state.selected_event or {}
+    
+    if mode == "view":
+        st.subheader("📌 일정 상세정보")
+        props = event_data.get("extendedProps", {})
+        
+        st.markdown(f"**제목:** `{event_data.get('title', '제목 없음')}`")
+        st.markdown(f"📅 **날짜:** {event_data.get('start')}")
+        st.markdown(f"🏷️ **카테고리:** {props.get('
