@@ -12,7 +12,7 @@ st.set_page_config(
     initial_sidebar_state="expanded"
 )
 
-# 메인 제목 및 패널 디자인 Custom CSS
+# Custom CSS
 st.markdown("""
 <style>
     .main-header {
@@ -80,7 +80,7 @@ if "events" not in st.session_state:
             "borderColor": "#17A2B8",
             "extendedProps": {
                 "description": "축제 부스 운영 아이디어 발표",
-                "priority": "None",
+                "priority": "",
                 "category": "개인일정"
             }
         }
@@ -183,4 +183,43 @@ def manage_event_dialog():
                 if is_checked:
                     selected_category = cat
 
-        st
+        st.markdown("---")
+
+        st.markdown("**🚨 중요도 설정 (선택 사항)**")
+        priorities = ["상", "중", "하"]
+        current_prio = props.get("priority", "") if is_edit else ""
+        
+        prio_cols = st.columns(3)
+        selected_priority = ""
+        for idx, prio in enumerate(priorities):
+            with prio_cols[idx]:
+                is_checked = st.checkbox(f"중요도 {prio}", value=(current_prio == prio), key=f"dialog_prio_{prio}")
+                if is_checked:
+                    selected_priority = prio
+
+        st.divider()
+        
+        col_submit, col_cancel = st.columns([2, 1])
+        with col_submit:
+            if st.button("💾 설정 완료 및 저장", type="primary", use_container_width=True):
+                color = get_color(selected_priority, selected_category)
+                target_date = event_data.get("start", st.session_state.selected_date) if is_edit else st.session_state.selected_date
+
+                final_title = title.strip() if title.strip() else "제목 없음"
+
+                if is_edit:
+                    for e in st.session_state.events:
+                        if str(e["id"]) == str(event_data["id"]):
+                            e["title"] = final_title
+                            e["backgroundColor"] = color
+                            e["borderColor"] = color
+                            e["extendedProps"] = {
+                                "description": description,
+                                "priority": selected_priority,
+                                "category": selected_category
+                            }
+                else:
+                    new_event = {
+                        "id": str(datetime.now().timestamp()),
+                        "title": final_title,
+                        "start
