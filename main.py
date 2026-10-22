@@ -99,14 +99,6 @@ if "dialog_mode" not in st.session_state:
 # 3. 일정 색상 결정 함수
 # ---------------------------------------------------------
 def get_color(priority, category):
-    """
-    일정 색상 결정 로직:
-    1. 중요도 '상': 빨간색 (#FF4B4B)
-    2. 중요도 '중': 노란색 (#FFC107)
-    3. 중요도 '하': 초록색 (#28A745)
-    4. 중요도 미설정 & '개인일정': 하늘색 (#17A2B8)
-    5. 모두 미설정 / 기타: 연보라색 (#9C27B0)
-    """
     if priority == "상":
         return "#FF4B4B"
     elif priority == "중":
@@ -116,7 +108,7 @@ def get_color(priority, category):
     elif category == "개인일정":
         return "#17A2B8"
     else:
-        return "#9C27B0"  # 연보라색
+        return "#9C27B0"
 
 # ---------------------------------------------------------
 # 4. 일정 추가/수정/삭제 대화상자 (Modal)
@@ -126,9 +118,6 @@ def manage_event_dialog():
     mode = st.session_state.dialog_mode
     event_data = st.session_state.selected_event or {}
     
-    # -----------------------------------------------------
-    # [A] 기존 일정 조회 모드
-    # -----------------------------------------------------
     if mode == "view":
         st.subheader("📌 일정 상세정보")
         props = event_data.get("extendedProps", {})
@@ -153,4 +142,45 @@ def manage_event_dialog():
                 st.rerun()
                 
         with col2:
-            if st.button("🗑️ 삭제하기", type="
+            if st.button("🗑️ 삭제하기", type="primary", use_container_width=True):
+                st.session_state.events = [
+                    e for e in st.session_state.events if str(e["id"]) != str(event_data["id"])
+                ]
+                st.session_state.show_dialog = False
+                st.toast("일정이 삭제되었습니다.", icon="🗑️")
+                st.rerun()
+                
+        with col3:
+            if st.button("➕ 같은 날에 추가", use_container_width=True):
+                st.session_state.selected_date = event_data.get("start")
+                st.session_state.dialog_mode = "create"
+                st.session_state.selected_event = None
+                st.rerun()
+
+    else:
+        is_edit = (mode == "edit")
+        st.subheader("✏️ 일정 수정" if is_edit else f"➕ 새 일정 추가 ({st.session_state.selected_date})")
+        
+        props = event_data.get("extendedProps", {}) if is_edit else {}
+        
+        default_title = event_data.get("title", "") if is_edit else ""
+        title = st.text_input("일정 제목", value=default_title, placeholder="예: 수학 수행평가 제출, 동아리 회의")
+        
+        default_desc = props.get("description", "") if is_edit else ""
+        description = st.text_area("부가 설명 (선택)", value=default_desc, placeholder="상세 내용이나 메모할 항목을 적어주세요.")
+        
+        st.markdown("---")
+        
+        st.markdown("**🏷️ 카테고리 선택 (선택 사항)**")
+        categories = ["수행평가", "시험", "동아리", "개인일정", "기타"]
+        current_cat = props.get("category", "") if is_edit else ""
+        
+        cat_cols = st.columns(len(categories))
+        selected_category = ""
+        for idx, cat in enumerate(categories):
+            with cat_cols[idx]:
+                is_checked = st.checkbox(cat, value=(current_cat == cat), key=f"dialog_cat_{cat}")
+                if is_checked:
+                    selected_category = cat
+
+        st
