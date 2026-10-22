@@ -222,4 +222,21 @@ def manage_event_dialog():
                     new_event = {
                         "id": str(datetime.now().timestamp()),
                         "title": final_title,
-                        "start
+                        "start": target_date,
+                        "end": target_date,
+                        "backgroundColor": color,
+                        "borderColor": color,
+                        "extendedProps": {
+                            "description": description,
+                            "priority": selected_priority,
+                            "category": selected_category
+                        }
+                    }
+                    st.session_state.events.append(new_event)
+                
+                st.session_state.show_dialog = False
+                st.toast("일정이 성공적으로 저장되었습니다!", icon="✅")
+                st.rerun()
+
+        with col_cancel:
+            if st.button("취소", use
