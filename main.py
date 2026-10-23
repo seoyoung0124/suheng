@@ -423,14 +423,18 @@ with add_col2:
 
 
 # 캘린더 클릭 결과 처리
+# streamlit-calendar은 callback 이름을 문자열로 반환하고,
+# 실제 데이터는 같은 이름의 키(dateClick/eventClick)에 담아 반환한다.
 if isinstance(calendar_state, dict):
-    callback_data = calendar_state.get("callback", calendar_state)
+    callback_name = calendar_state.get("callback")
 
-    if isinstance(callback_data, dict):
-        date_click = callback_data.get("dateClick")
+    if callback_name == "dateClick":
+        date_click = calendar_state.get("dateClick", {})
         if isinstance(date_click, dict):
             clicked_date = normalize_date(
-                date_click.get("dateStr") or date_click.get("date")
+                date_click.get("date")
+                or date_click.get("dateStr")
+                or date_click.get("start")
             )
             if clicked_date:
                 st.session_state.selected_date = clicked_date
@@ -438,7 +442,8 @@ if isinstance(calendar_state, dict):
                 st.session_state.pending_action = "add"
                 st.session_state.form_version += 1
 
-        event_click = callback_data.get("eventClick")
+    elif callback_name == "eventClick":
+        event_click = calendar_state.get("eventClick", {})
         if isinstance(event_click, dict):
             clicked_event = event_click.get("event") or {}
             clicked_id = clicked_event.get("id")
