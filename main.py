@@ -423,27 +423,34 @@ with add_col2:
 
 
 # 캘린더 클릭 결과 처리
-# streamlit-calendar은 callback 이름을 문자열로 반환하고,
-# 실제 데이터는 같은 이름의 키(dateClick/eventClick)에 담아 반환한다.
+# streamlit-calendar 버전에 따라 콜백 데이터 구조가 다를 수 있어
+# callback 이름과 실제 데이터 키를 함께 확인한다.
 if isinstance(calendar_state, dict):
     callback_name = calendar_state.get("callback")
+    date_click = calendar_state.get("dateClick")
+    event_click = calendar_state.get("eventClick")
 
-    if callback_name == "dateClick":
-        date_click = calendar_state.get("dateClick", {})
+    if callback_name == "dateClick" or (
+        callback_name is None and isinstance(date_click, dict)
+    ):
         if isinstance(date_click, dict):
             clicked_date = normalize_date(
                 date_click.get("date")
                 or date_click.get("dateStr")
                 or date_click.get("start")
             )
-            if clicked_date:
-                st.session_state.selected_date = clicked_date
-                st.session_state.selected_event_id = None
-                st.session_state.pending_action = "add"
-                st.session_state.form_version += 1
+        else:
+            clicked_date = normalize_date(date_click)
 
-    elif callback_name == "eventClick":
-        event_click = calendar_state.get("eventClick", {})
+        if clicked_date:
+            st.session_state.selected_date = clicked_date
+            st.session_state.selected_event_id = None
+            st.session_state.pending_action = "add"
+            st.session_state.form_version += 1
+
+    elif callback_name == "eventClick" or (
+        callback_name is None and isinstance(event_click, dict)
+    ):
         if isinstance(event_click, dict):
             clicked_event = event_click.get("event") or {}
             clicked_id = clicked_event.get("id")
