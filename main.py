@@ -2,7 +2,84 @@ import uuid
 from datetime import date, datetime
 import streamlit as st
 from streamlit_calendar import calendar
-from supabase_utils import get_supabase, store_auth_session, current_user_id, sign_out
+from supabase import create_client
+
+# Supabase helper functions are included in this file so main.py does not
+# depend on importing supabase_utils.py.
+def get_supabase():
+    if "supabase_client" in st.session_state:
+        client = st.session_state.supabase_client
+        access = st.session_state.get("supabase_access_token")
+        refresh = st.session_state.get("supabase_refresh_token")
+        if access and refresh and not st.session_state.get("supabase_session_restored"):
+            try:
+                client.auth.set_session(access, refresh)
+                st.session_state.supabase_session_restored = True
+            except Exception:
+                for key in (
+                    "supabase_access_token", "supabase_refresh_token",
+                    "user_id", "user_email", "supabase_client",
+                    "supabase_session_restored"
+                ):
+                    st.session_state.pop(key, None)
+                st.rerun()
+        return client
+
+    try:
+        url = st.secrets["SUPABASE_URL"]
+        key = st.secrets["SUPABASE_KEY"]
+    except Exception:
+        st.error("Streamlit Cloud의 Settings → Secrets에 SUPABASE_URL과 SUPABASE_KEY를 설정해 주세요.")
+        st.stop()
+
+    client = create_client(url, key)
+    access = st.session_state.get("supabase_access_token")
+    refresh = st.session_state.get("supabase_refresh_token")
+    if access and refresh:
+        try:
+            client.auth.set_session(access, refresh)
+            st.session_state.supabase_session_restored = True
+        except Exception:
+            for key in (
+                "supabase_access_token", "supabase_refresh_token",
+                "user_id", "user_email", "supabase_session_restored"
+            ):
+                st.session_state.pop(key, None)
+    st.session_state.supabase_client = client
+    return client
+
+
+def store_auth_session(client, response):
+    session = getattr(response, "session", None)
+    user = getattr(response, "user", None)
+    if not session or not user:
+        return False
+    st.session_state.supabase_access_token = session.access_token
+    st.session_state.supabase_refresh_token = session.refresh_token
+    st.session_state.user_id = str(user.id)
+    st.session_state.user_email = user.email or ""
+    st.session_state.supabase_client = client
+    st.session_state.supabase_session_restored = True
+    return True
+
+
+def current_user_id():
+    return st.session_state.get("user_id")
+
+
+def sign_out():
+    client = st.session_state.get("supabase_client")
+    if client:
+        try:
+            client.auth.sign_out()
+        except Exception:
+            pass
+    for key in (
+        "supabase_client", "supabase_access_token", "supabase_refresh_token",
+        "user_id", "user_email", "supabase_session_restored"
+    ):
+        st.session_state.pop(key, None)
+
 
 st.set_page_config(page_title="하루결 | 일정 관리", page_icon="🗓️", layout="wide")
 CATEGORIES = ["수행평가", "시험", "동아리", "개인일정", "과제", "학교행사", "기타"]
