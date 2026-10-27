@@ -1,4 +1,5 @@
 import uuid
+import hashlib
 from datetime import date, datetime
 import streamlit as st
 from streamlit_calendar import calendar
@@ -86,47 +87,76 @@ CATEGORIES = ["수행평가", "시험", "동아리", "개인일정", "과제", "
 COLORS = {"상": "#F87171", "중": "#FACC15", "하": "#4ADE80", "없음": "#C4B5FD"}
 PERSONAL_COLOR = "#7DD3FC"
 
+def username_to_email(username):
+    """Supabase Auth는 이메일 로그인을 요구하므로 아이디를 내부용 이메일 형식으로 변환한다."""
+    normalized = username.strip().casefold()
+    digest = hashlib.sha256(normalized.encode("utf-8")).hexdigest()
+    return f"{digest}@example.com"
+
+
 def auth_page():
     st.title("🗓️ 하루결")
-    st.write("회원가입 또는 로그인하면 나만의 캘린더를 사용할 수 있어요.")
+    st.write("아이디와 비밀번호로 회원가입하거나 로그인할 수 있어요.")
+    st.info("아이디는 이메일 주소가 아니라 원하는 문자열로 입력하면 됩니다. 비밀번호는 6자 이상으로 설정해 주세요.")
     client = get_supabase()
     login, signup = st.tabs(["로그인", "회원가입"])
+
     with login:
         with st.form("login_form"):
-            email = st.text_input("이메일", key="login_email")
+            username = st.text_input("아이디", key="login_username")
             password = st.text_input("비밀번호", type="password", key="login_password")
             submit = st.form_submit_button("로그인", type="primary", use_container_width=True)
         if submit:
-            try:
-                response = client.auth.sign_in_with_password({"email": email.strip(), "password": password})
-                if store_auth_session(client, response):
-                    st.rerun()
-                st.error("로그인 세션을 만들지 못했습니다. 이메일 인증 여부를 확인해 주세요.")
-            except Exception:
-                st.error("로그인에 실패했습니다. 이메일·비밀번호 또는 이메일 인증 상태를 확인해 주세요.")
+            if not username.strip() or not password:
+                st.warning("아이디와 비밀번호를 입력해 주세요.")
+            else:
+                try:
+                    internal_email = username_to_email(username)
+                    response = client.auth.sign_in_with_password({
+                        "email": internal_email,
+                        "password": password
+                    })
+                    if store_auth_session(client, response):
+                        st.session_state.user_email = username.strip()
+                        st.session_state.login_username = username.strip()
+                        st.rerun()
+                    st.error("로그인 세션을 만들지 못했습니다. Supabase의 이메일 확인 설정을 확인해 주세요.")
+                except Exception:
+                    st.error("로그인에 실패했습니다. 아이디와 비밀번호를 확인해 주세요.")
+
     with signup:
         with st.form("signup_form"):
-            email = st.text_input("이메일 주소", key="signup_email")
+            username = st.text_input("사용할 아이디", key="signup_username")
             password = st.text_input("비밀번호", type="password", key="signup_password")
             confirm = st.text_input("비밀번호 확인", type="password", key="signup_confirm")
             submit = st.form_submit_button("회원가입", type="primary", use_container_width=True)
         if submit:
-            if not email.strip() or not password:
-                st.warning("이메일과 비밀번호를 입력해 주세요.")
+            normalized_username = username.strip()
+            if not normalized_username or not password:
+                st.warning("아이디와 비밀번호를 입력해 주세요.")
+            elif any(ch.isspace() for ch in normalized_username):
+                st.warning("아이디에는 공백을 넣을 수 없습니다.")
             elif password != confirm:
                 st.warning("비밀번호가 일치하지 않습니다.")
             elif len(password) < 6:
                 st.warning("비밀번호를 6자 이상 입력해 주세요.")
             else:
                 try:
-                    response = client.auth.sign_up({"email": email.strip(), "password": password})
+                    internal_email = username_to_email(normalized_username)
+                    response = client.auth.sign_up({
+                        "email": internal_email,
+                        "password": password,
+                        "options": {"data": {"username": normalized_username}}
+                    })
                     if store_auth_session(client, response):
+                        st.session_state.user_email = normalized_username
+                        st.session_state.login_username = normalized_username
                         st.success("회원가입이 완료되었습니다.")
                         st.rerun()
                     else:
-                        st.success("가입 요청이 완료되었습니다. 이메일 인증이 설정되어 있다면 이메일 인증 후 로그인해 주세요.")
+                        st.error("계정이 생성되었지만 바로 로그인되지 않았습니다. Supabase에서 이메일 확인(Confirm email)을 꺼야 아이디만으로 가입할 수 있습니다.")
                 except Exception:
-                    st.error("회원가입에 실패했습니다. 이메일 형식과 Supabase Authentication 설정을 확인해 주세요.")
+                    st.error("회원가입에 실패했습니다. 같은 아이디가 이미 있는지, Supabase Authentication 설정을 확인해 주세요.")
 
 def fetch_events(client, uid):
     rows = client.table("events").select("*").eq("user_id", uid).order("event_date").execute().data or []
@@ -172,7 +202,7 @@ uid = current_user_id()
 head, logout_col = st.columns([5, 1])
 with head:
     st.title("🗓️ 하루결")
-    st.caption(f"로그인 계정: {st.session_state.get('user_email', '')}")
+    st.caption(f"로그인 아이디: {st.session_state.get('login_username', st.session_state.get('user_email', ''))}")
 with logout_col:
     if st.button("로그아웃", use_container_width=True):
         sign_out()
