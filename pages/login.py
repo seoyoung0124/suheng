@@ -66,8 +66,13 @@ with signup_tab:
                 else:
                     st.success("가입 요청이 완료되었습니다. 이메일 인증이 설정되어 있다면 받은 편지함에서 인증한 뒤 로그인해 주세요.")
             except Exception as exc:
-                st.error("회원가입에 실패했습니다. 이메일 형식, 이미 가입된 이메일인지, Supabase Authentication 설정을 확인해 주세요.")
-                st.caption(f"오류 내용: {exc}")
+    st.error("회원가입에 실패했습니다.")
+
+    # 비밀번호나 인증 토큰은 출력하지 않고 오류 정보만 확인
+    st.write("오류 유형:", type(exc).__name__)
+    st.write("오류 코드:", getattr(exc, "code", "확인 불가"))
+    st.write("HTTP 상태:", getattr(exc, "status", "확인 불가"))
+    st.write("오류 설명:", str(exc))
 
 st.divider()
 st.page_link("main.py", label="캘린더 페이지로 이동", icon="🗓️")
