@@ -20,7 +20,9 @@ with login_tab:
     with st.form("login_form"):
         login_email = st.text_input("이메일", key="login_email")
         login_password = st.text_input("비밀번호", type="password", key="login_password")
-        login_submit = st.form_submit_button("로그인", type="primary", use_container_width=True)
+        login_submit = st.form_submit_button(
+            "로그인", type="primary", use_container_width=True
+        )
 
     if login_submit:
         if not login_email.strip() or not login_password:
@@ -35,9 +37,13 @@ with login_tab:
                     st.success("로그인되었습니다.")
                     st.switch_page("main.py")
                 else:
-                    st.error("로그인 세션을 만들지 못했습니다. 이메일 인증이 필요한지 확인해 주세요.")
+                    st.error(
+                        "로그인 세션을 만들지 못했습니다. "
+                        "이메일 인증이 필요한지 확인해 주세요."
+                    )
             except Exception as exc:
-                st.error("로그인에 실패했습니다. 이메일·비밀번호와 이메일 인증 상태를 확인해 주세요.")
+                st.error("로그인에 실패했습니다. 계정 정보와 이메일 인증 상태를 확인해 주세요.")
+                st.caption(f"오류 유형: {type(exc).__name__}")
                 st.caption(f"오류 내용: {exc}")
 
 with signup_tab:
@@ -45,7 +51,9 @@ with signup_tab:
         signup_email = st.text_input("이메일 주소", key="signup_email")
         signup_password = st.text_input("비밀번호", type="password", key="signup_password")
         signup_confirm = st.text_input("비밀번호 확인", type="password", key="signup_confirm")
-        signup_submit = st.form_submit_button("회원가입", type="primary", use_container_width=True)
+        signup_submit = st.form_submit_button(
+            "회원가입", type="primary", use_container_width=True
+        )
 
     if signup_submit:
         if not signup_email.strip() or not signup_password:
@@ -60,19 +68,21 @@ with signup_tab:
                     "email": signup_email.strip(),
                     "password": signup_password,
                 })
+
                 if store_auth_session(client, response):
                     st.success("회원가입과 로그인이 완료되었습니다.")
                     st.switch_page("main.py")
                 else:
-                    st.success("가입 요청이 완료되었습니다. 이메일 인증이 설정되어 있다면 받은 편지함에서 인증한 뒤 로그인해 주세요.")
+                    st.success(
+                        "가입 요청이 완료되었습니다. 이메일 인증이 설정되어 있다면 "
+                        "메일을 확인한 뒤 로그인해 주세요."
+                    )
             except Exception as exc:
-    st.error("회원가입에 실패했습니다.")
-
-    # 비밀번호나 인증 토큰은 출력하지 않고 오류 정보만 확인
-    st.write("오류 유형:", type(exc).__name__)
-    st.write("오류 코드:", getattr(exc, "code", "확인 불가"))
-    st.write("HTTP 상태:", getattr(exc, "status", "확인 불가"))
-    st.write("오류 설명:", str(exc))
+                st.error("회원가입에 실패했습니다.")
+                st.caption(f"오류 유형: {type(exc).__name__}")
+                st.caption(f"오류 코드: {getattr(exc, 'code', '확인 불가')}")
+                st.caption(f"HTTP 상태: {getattr(exc, 'status', '확인 불가')}")
+                st.caption(f"오류 설명: {exc}")
 
 st.divider()
 st.page_link("main.py", label="캘린더 페이지로 이동", icon="🗓️")
