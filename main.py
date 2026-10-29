@@ -1,269 +1,164 @@
 import uuid
-import hashlib
 from datetime import date, datetime
+
 import streamlit as st
 from streamlit_calendar import calendar
-from supabase import create_client
 
-# Supabase helper functions are included in this file so main.py does not
-# depend on importing supabase_utils.py.
-def get_supabase():
-    if "supabase_client" in st.session_state:
-        client = st.session_state.supabase_client
-        access = st.session_state.get("supabase_access_token")
-        refresh = st.session_state.get("supabase_refresh_token")
-        if access and refresh and not st.session_state.get("supabase_session_restored"):
-            try:
-                client.auth.set_session(access, refresh)
-                st.session_state.supabase_session_restored = True
-            except Exception:
-                for key in (
-                    "supabase_access_token", "supabase_refresh_token",
-                    "user_id", "user_email", "supabase_client",
-                    "supabase_session_restored"
-                ):
-                    st.session_state.pop(key, None)
-                st.rerun()
-        return client
-
-    try:
-        url = st.secrets["SUPABASE_URL"]
-        key = st.secrets["SUPABASE_KEY"]
-    except Exception:
-        st.error("Streamlit Cloud의 Settings → Secrets에 SUPABASE_URL과 SUPABASE_KEY를 설정해 주세요.")
-        st.stop()
-
-    client = create_client(url, key)
-    access = st.session_state.get("supabase_access_token")
-    refresh = st.session_state.get("supabase_refresh_token")
-    if access and refresh:
-        try:
-            client.auth.set_session(access, refresh)
-            st.session_state.supabase_session_restored = True
-        except Exception:
-            for key in (
-                "supabase_access_token", "supabase_refresh_token",
-                "user_id", "user_email", "supabase_session_restored"
-            ):
-                st.session_state.pop(key, None)
-    st.session_state.supabase_client = client
-    return client
-
-
-def store_auth_session(client, response):
-    session = getattr(response, "session", None)
-    user = getattr(response, "user", None)
-    if not session or not user:
-        return False
-    st.session_state.supabase_access_token = session.access_token
-    st.session_state.supabase_refresh_token = session.refresh_token
-    st.session_state.user_id = str(user.id)
-    st.session_state.user_email = user.email or ""
-    st.session_state.supabase_client = client
-    st.session_state.supabase_session_restored = True
-    return True
-
-
-def current_user_id():
-    return st.session_state.get("user_id")
-
-
-def sign_out():
-    client = st.session_state.get("supabase_client")
-    if client:
-        try:
-            client.auth.sign_out()
-        except Exception:
-            pass
-    for key in (
-        "supabase_client", "supabase_access_token", "supabase_refresh_token",
-        "user_id", "user_email", "supabase_session_restored"
-    ):
-        st.session_state.pop(key, None)
-
+from supabase_utils import get_supabase, current_user_id, sign_out
 
 st.set_page_config(page_title="하루결 | 일정 관리", page_icon="🗓️", layout="wide")
+
 CATEGORIES = ["수행평가", "시험", "동아리", "개인일정", "과제", "학교행사", "기타"]
 COLORS = {"상": "#F87171", "중": "#FACC15", "하": "#4ADE80", "없음": "#C4B5FD"}
 PERSONAL_COLOR = "#7DD3FC"
 
-def username_to_email(username):
-    """Supabase Auth는 이메일 로그인을 요구하므로 아이디를 내부용 이메일 형식으로 변환한다."""
-    normalized = username.strip().casefold()
-    digest = hashlib.sha256(normalized.encode("utf-8")).hexdigest()
-    return f"{digest}@example.com"
-
-
-def auth_page():
-    st.title("🗓️ 하루결")
-    st.write("아이디와 비밀번호로 회원가입하거나 로그인할 수 있어요.")
-    st.info("아이디는 이메일 주소가 아니라 원하는 문자열로 입력하면 됩니다. 비밀번호는 6자 이상으로 설정해 주세요.")
-    client = get_supabase()
-    login, signup = st.tabs(["로그인", "회원가입"])
-
-    with login:
-        with st.form("login_form"):
-            username = st.text_input("아이디", key="login_username")
-            password = st.text_input("비밀번호", type="password", key="login_password")
-            submit = st.form_submit_button("로그인", type="primary", use_container_width=True)
-        if submit:
-            if not username.strip() or not password:
-                st.warning("아이디와 비밀번호를 입력해 주세요.")
-            else:
-                try:
-                    internal_email = username_to_email(username)
-                    response = client.auth.sign_in_with_password({
-                        "email": internal_email,
-                        "password": password
-                    })
-                    if store_auth_session(client, response):
-                        st.session_state.user_email = username.strip()
-                        st.session_state.login_username = username.strip()
-                        st.rerun()
-                    st.error("로그인 세션을 만들지 못했습니다. Supabase의 이메일 확인 설정을 확인해 주세요.")
-                except Exception:
-                    st.error("로그인에 실패했습니다. 아이디와 비밀번호를 확인해 주세요.")
-
-    with signup:
-        with st.form("signup_form"):
-            username = st.text_input("사용할 아이디", key="signup_username")
-            password = st.text_input("비밀번호", type="password", key="signup_password")
-            confirm = st.text_input("비밀번호 확인", type="password", key="signup_confirm")
-            submit = st.form_submit_button("회원가입", type="primary", use_container_width=True)
-        if submit:
-            normalized_username = username.strip()
-            if not normalized_username or not password:
-                st.warning("아이디와 비밀번호를 입력해 주세요.")
-            elif any(ch.isspace() for ch in normalized_username):
-                st.warning("아이디에는 공백을 넣을 수 없습니다.")
-            elif password != confirm:
-                st.warning("비밀번호가 일치하지 않습니다.")
-            elif len(password) < 6:
-                st.warning("비밀번호를 6자 이상 입력해 주세요.")
-            else:
-                try:
-                    internal_email = username_to_email(normalized_username)
-                    response = client.auth.sign_up({
-                        "email": internal_email,
-                        "password": password,
-                        "options": {"data": {"username": normalized_username}}
-                    })
-                    if store_auth_session(client, response):
-                        st.session_state.user_email = normalized_username
-                        st.session_state.login_username = normalized_username
-                        st.success("회원가입이 완료되었습니다.")
-                        st.rerun()
-                    else:
-                        st.error("계정이 생성되었지만 바로 로그인되지 않았습니다. Supabase에서 이메일 확인(Confirm email)을 꺼야 아이디만으로 가입할 수 있습니다.")
-                except Exception:
-                    st.error("회원가입에 실패했습니다. 같은 아이디가 이미 있는지, Supabase Authentication 설정을 확인해 주세요.")
 
 def fetch_events(client, uid):
-    rows = client.table("events").select("*").eq("user_id", uid).order("event_date").execute().data or []
+    rows = (
+        client.table("events")
+        .select("*")
+        .eq("user_id", uid)
+        .order("event_date")
+        .execute()
+        .data
+        or []
+    )
     result = []
-    for r in rows:
-        if not r.get("event_date"):
+    for row in rows:
+        if not row.get("event_date"):
             continue
-        cats = r.get("categories") or []
+        cats = row.get("categories") or []
         if isinstance(cats, str):
             cats = [cats]
         result.append({
-            "id": str(r["id"]), "date": str(r["event_date"])[:10],
-            "title": r.get("title") or "", "description": r.get("description") or "",
-            "importance": r.get("importance") if r.get("importance") in COLORS else "없음",
-            "categories": [x for x in cats if x in CATEGORIES]
+            "id": str(row["id"]),
+            "date": str(row["event_date"])[:10],
+            "title": row.get("title") or "",
+            "description": row.get("description") or "",
+            "importance": row.get("importance") if row.get("importance") in COLORS else "없음",
+            "categories": [item for item in cats if item in CATEGORIES],
         })
     return result
 
+
 def write_event(client, uid, event):
     client.table("events").upsert({
-        "id": event["id"], "user_id": uid, "event_date": event["date"],
-        "title": event["title"], "description": event["description"],
-        "importance": event["importance"], "categories": event["categories"]
+        "id": event["id"],
+        "user_id": uid,
+        "event_date": event["date"],
+        "title": event["title"],
+        "description": event["description"],
+        "importance": event["importance"],
+        "categories": event["categories"],
     }).execute()
+
 
 def date_from(value):
     if not value:
         return None
     try:
         return datetime.fromisoformat(str(value).replace("Z", "+00:00")).date().isoformat()
-    except ValueError:
+    except (ValueError, TypeError):
         try:
             return date.fromisoformat(str(value)[:10]).isoformat()
-        except ValueError:
+        except (ValueError, TypeError):
             return None
 
+
+# 로그인 UI는 pages/login.py에서만 표시합니다.
 if not current_user_id():
-    auth_page()
+    st.title("🗓️ 하루결")
+    st.info("캘린더를 사용하려면 먼저 로그인해 주세요.")
+    st.page_link("pages/login.py", label="로그인 / 회원가입 페이지로 이동", icon="🔐")
     st.stop()
 
 client = get_supabase()
 uid = current_user_id()
+
 head, logout_col = st.columns([5, 1])
 with head:
     st.title("🗓️ 하루결")
-    st.caption(f"로그인 아이디: {st.session_state.get('login_username', st.session_state.get('user_email', ''))}")
+    st.caption(f"로그인 계정: {st.session_state.get('user_email', '')}")
 with logout_col:
     if st.button("로그아웃", use_container_width=True):
         sign_out()
-        st.rerun()
+        st.switch_page("pages/login.py")
 
 try:
     events = fetch_events(client, uid)
 except Exception as exc:
     st.error(f"일정을 불러오지 못했습니다: {exc}")
-    st.info("SQL Editor에서 테이블과 RLS 정책을 설정했는지, events 테이블에 user_id 및 event_date 컬럼이 있는지 확인해 주세요.")
+    st.info("Supabase 테이블과 RLS 정책, events 테이블의 user_id 및 event_date 컬럼을 확인해 주세요.")
     st.stop()
 
-cal_events = []
-for e in events:
-    color = PERSONAL_COLOR if "개인일정" in e["categories"] else COLORS[e["importance"]]
-    cal_events.append({"id": e["id"], "title": e["title"] or "(제목 없음)", "start": e["date"],
-                       "allDay": True, "backgroundColor": color, "borderColor": color,
-                       "textColor": "#263238"})
+calendar_events = []
+for event in events:
+    color = PERSONAL_COLOR if "개인일정" in event["categories"] else COLORS[event["importance"]]
+    calendar_events.append({
+        "id": event["id"],
+        "title": event["title"] or "(제목 없음)",
+        "start": event["date"],
+        "allDay": True,
+        "backgroundColor": color,
+        "borderColor": color,
+        "textColor": "#263238",
+    })
 
 st.subheader("나의 월간 캘린더")
-state = calendar(
-    events=cal_events,
+calendar_state = calendar(
+    events=calendar_events,
     options={
-        "initialView": "dayGridMonth", "locale": "ko", "timeZone": "local",
-        "height": 680, "contentHeight": 650, "expandRows": True, "dayMaxEvents": 4,
-        "dateClick": True, "eventClick": True, "selectable": True, "editable": False,
+        "initialView": "dayGridMonth",
+        "locale": "ko",
+        "timeZone": "local",
+        "height": 680,
+        "contentHeight": 650,
+        "expandRows": True,
+        "dayMaxEvents": 4,
+        "dateClick": True,
+        "eventClick": True,
+        "selectable": True,
+        "editable": False,
         "headerToolbar": {"left": "prev,next today", "center": "title", "right": ""},
-        "buttonText": {"today": "오늘"}, "displayEventTime": False, "fixedWeekCount": False
+        "buttonText": {"today": "오늘"},
+        "displayEventTime": False,
+        "fixedWeekCount": False,
     },
-    callbacks=["dateClick", "eventClick"], key="main_calendar"
+    callbacks=["dateClick", "eventClick"],
+    key="main_calendar",
 )
 
-# Calendar callback support differs by streamlit-calendar version.
-if isinstance(state, dict):
-    callback = state.get("callback")
-    dc = state.get("dateClick")
-    ec = state.get("eventClick")
-    if callback == "dateClick" or (callback is None and isinstance(dc, dict)):
-        picked = date_from((dc or {}).get("date") or (dc or {}).get("dateStr"))
+# streamlit-calendar 버전에 따라 콜백 반환 형태가 다를 수 있습니다.
+if isinstance(calendar_state, dict):
+    callback = calendar_state.get("callback")
+    date_click = calendar_state.get("dateClick")
+    event_click = calendar_state.get("eventClick")
+
+    if callback == "dateClick" or (callback is None and isinstance(date_click, dict)):
+        picked = date_from((date_click or {}).get("date") or (date_click or {}).get("dateStr"))
         if picked:
             st.session_state.selected_date = picked
             st.session_state.edit_event_id = None
             st.session_state.show_event_form = True
             st.rerun()
-    elif callback == "eventClick" or (callback is None and isinstance(ec, dict)):
-        event_data = (ec or {}).get("event") or {}
+    elif callback == "eventClick" or (callback is None and isinstance(event_click, dict)):
+        event_data = (event_click or {}).get("event") or {}
         if event_data.get("id"):
             st.session_state.view_event_id = str(event_data["id"])
             st.rerun()
 
 with st.expander("날짜를 직접 선택해 일정 추가", expanded=False):
-    fallback = st.date_input("일정 날짜", value=date.today(), key="fallback_date")
+    fallback_date = st.date_input("일정 날짜", value=date.today(), key="fallback_date")
     if st.button("＋ 이 날짜에 일정 추가"):
-        st.session_state.selected_date = fallback.isoformat()
+        st.session_state.selected_date = fallback_date.isoformat()
         st.session_state.edit_event_id = None
         st.session_state.show_event_form = True
         st.rerun()
 
-# Event details and actions
+# 일정 상세 보기 및 수정/삭제
 view_id = st.session_state.get("view_event_id")
-view_event = next((e for e in events if e["id"] == view_id), None)
+view_event = next((event for event in events if event["id"] == view_id), None)
+
 if view_event:
     with st.container(border=True):
         st.subheader(view_event["title"] or "(제목 없음)")
@@ -271,14 +166,16 @@ if view_event:
         st.write(view_event["description"] or "설명 없음")
         st.write(f"중요도: {view_event['importance']}")
         st.write("카테고리: " + (", ".join(view_event["categories"]) or "없음"))
-        c1, c2, c3 = st.columns(3)
-        if c1.button("수정", key="view_edit"):
+        col1, col2, col3 = st.columns(3)
+
+        if col1.button("수정", key="view_edit"):
             st.session_state.edit_event_id = view_id
             st.session_state.selected_date = view_event["date"]
             st.session_state.show_event_form = True
             st.session_state.view_event_id = None
             st.rerun()
-        if c2.button("삭제", key="view_delete"):
+
+        if col2.button("삭제", key="view_delete"):
             try:
                 client.table("events").delete().eq("id", view_id).eq("user_id", uid).execute()
                 client.table("todo_status").delete().eq("event_id", view_id).eq("user_id", uid).execute()
@@ -287,46 +184,66 @@ if view_event:
                 st.rerun()
             except Exception as exc:
                 st.error(f"삭제 실패: {exc}")
-        if c3.button("닫기", key="view_close"):
+
+        if col3.button("닫기", key="view_close"):
             st.session_state.view_event_id = None
             st.rerun()
 
+# 일정 추가/수정 폼
 if st.session_state.get("show_event_form", False):
     edit_id = st.session_state.get("edit_event_id")
-    existing = next((e for e in events if e["id"] == edit_id), None) if edit_id else None
+    existing = next((event for event in events if event["id"] == edit_id), None) if edit_id else None
     picked_date = st.session_state.get("selected_date", date.today().isoformat())
+
     st.divider()
     st.subheader("일정 수정" if existing else "일정 추가")
     st.caption(f"선택한 날짜: {picked_date}")
+
     with st.form("event_editor"):
         title = st.text_input("일정 제목", value=existing["title"] if existing else "")
         description = st.text_area("부가 설명", value=existing["description"] if existing else "")
-        imp_options = ["없음", "상", "중", "하"]
-        importance = st.radio("중요도", imp_options, index=imp_options.index(existing["importance"] if existing else "없음"), horizontal=True)
-        categories = st.multiselect("카테고리", CATEGORIES, default=existing["categories"] if existing else [])
+        importance_options = ["없음", "상", "중", "하"]
+        current_importance = existing["importance"] if existing else "없음"
+        importance = st.radio(
+            "중요도",
+            importance_options,
+            index=importance_options.index(current_importance),
+            horizontal=True,
+        )
+        categories = st.multiselect(
+            "카테고리",
+            CATEGORIES,
+            default=existing["categories"] if existing else [],
+        )
         save = st.form_submit_button("저장", type="primary")
-    c1, c2 = st.columns(2)
-    with c1:
-        if save:
-            event = {"id": edit_id or str(uuid.uuid4()), "date": picked_date, "title": title.strip(),
-                     "description": description.strip(), "importance": importance, "categories": categories}
-            try:
-                write_event(client, uid, event)
-                st.session_state.show_event_form = False
-                st.session_state.edit_event_id = None
-                st.success("일정을 저장했습니다.")
-                st.rerun()
-            except Exception as exc:
-                st.error(f"저장 실패: {exc}")
-    with c2:
-        if st.button("취소", key="cancel_event_form"):
+
+    cancel_col, _ = st.columns(2)
+    if save:
+        event = {
+            "id": edit_id or str(uuid.uuid4()),
+            "date": picked_date,
+            "title": title.strip(),
+            "description": description.strip(),
+            "importance": importance,
+            "categories": categories,
+        }
+        try:
+            write_event(client, uid, event)
             st.session_state.show_event_form = False
             st.session_state.edit_event_id = None
+            st.success("일정을 저장했습니다.")
             st.rerun()
+        except Exception as exc:
+            st.error(f"저장 실패: {exc}")
+
+    if cancel_col.button("취소", key="cancel_event_form"):
+        st.session_state.show_event_form = False
+        st.session_state.edit_event_id = None
+        st.rerun()
 
 st.divider()
 today = date.today().isoformat()
-a, b, c = st.columns(3)
-a.metric("전체 일정", f"{len(events)}개")
-b.metric("오늘 일정", f"{sum(e['date'] == today for e in events)}개")
-c.metric("오늘 이후 일정", f"{sum(e['date'] >= today for e in events)}개")
+metric1, metric2, metric3 = st.columns(3)
+metric1.metric("전체 일정", f"{len(events)}개")
+metric2.metric("오늘 일정", f"{sum(event['date'] == today for event in events)}개")
+metric3.metric("오늘 이후 일정", f"{sum(event['date'] >= today for event in events)}개")
