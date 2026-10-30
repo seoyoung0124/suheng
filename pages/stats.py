@@ -1,4 +1,4 @@
-from datetime import date, datetime, timedelta
+from datetime import date, timedelta
 import calendar
 
 import pandas as pd
@@ -18,18 +18,42 @@ st.markdown(
     """
     <style>
     .block-container {
-        max-width: 760px;
-        padding-top: 2.2rem;
+        max-width: 850px;
+        padding-top: 2rem;
         padding-bottom: 3rem;
     }
-    h1, h2, h3 {
-        letter-spacing: -0.04em;
+    h1, h2, h3 { letter-spacing: -0.035em; }
+    .section-intro {
+        color: #64748b;
+        font-size: 0.92rem;
+        margin-top: -0.45rem;
+        margin-bottom: 1rem;
+    }
+    .stat-heading {
+        font-size: 1.05rem;
+        font-weight: 700;
+        margin: 0.35rem 0 0.7rem 0;
     }
     div[data-testid="stMetric"] {
         background: #f7f8fa;
-        border: 1px solid #eceef1;
-        padding: 14px 16px;
-        border-radius: 12px;
+        border: 1px solid #e6e9ee;
+        border-radius: 13px;
+        padding: 15px 18px;
+        min-height: 105px;
+    }
+    div[data-testid="stMetricLabel"] {
+        font-size: 0.9rem;
+        color: #475569;
+    }
+    div[data-testid="stMetricValue"] {
+        font-size: 1.65rem;
+        font-weight: 700;
+    }
+    div[data-testid="stTabs"] button {
+        font-size: 1rem;
+        font-weight: 650;
+        padding-top: 0.65rem;
+        padding-bottom: 0.65rem;
     }
     </style>
     """,
@@ -38,7 +62,6 @@ st.markdown(
 
 
 def parse_event_date(value):
-    """Supabase 날짜 값을 date 객체로 변환한다."""
     if not value:
         return None
     try:
@@ -48,7 +71,6 @@ def parse_event_date(value):
 
 
 def get_categories(value):
-    """categories JSONB 값을 안전하게 목록으로 변환한다."""
     if isinstance(value, list):
         return [str(item) for item in value if item]
     if isinstance(value, str) and value.strip():
@@ -59,33 +81,35 @@ def get_categories(value):
 def summarize_period(period_events, statuses, start_date, end_date):
     selected = [
         event for event in period_events
-        if event["_date"] is not None and start_date <= event["_date"] <= end_date
+        if start_date <= event["_date"] <= end_date
     ]
-
     total = len(selected)
     completed = sum(
-        1 for event in selected
-        if statuses.get(str(event["id"]), False)
+        1 for event in selected if statuses.get(str(event["id"]), False)
     )
     remaining = total - completed
     rate = completed / total if total else 0
-
     return selected, total, completed, remaining, rate
 
 
 def render_metrics(total, completed, remaining, rate):
-    c1, c2, c3, c4 = st.columns(4)
-    c1.metric("전체 일정", f"{total}개")
-    c2.metric("완료", f"{completed}개")
-    c3.metric("미완료", f"{remaining}개")
-    c4.metric("완료율", f"{rate:.0%}")
+    # 4개 지표를 2x2로 배치해 작은 화면에서도 읽기 쉽게 표시
+    row1_col1, row1_col2 = st.columns(2)
+    row1_col1.metric("전체 일정", f"{total}개")
+    row1_col2.metric("완료한 일정", f"{completed}개")
+    row2_col1, row2_col2 = st.columns(2)
+    row2_col1.metric("남은 일정", f"{remaining}개")
+    row2_col2.metric("완료율", f"{rate:.0%}")
+
+    st.progress(rate)
+    st.caption(f"전체 {total}개 중 {completed}개 완료 · 미완료 {remaining}개")
 
 
 def render_daily_chart(selected, statuses, start_date, end_date):
     day_count = (end_date - start_date).days + 1
     days = [start_date + timedelta(days=i) for i in range(day_count)]
-
     rows = []
+
     for day in days:
         day_events = [event for event in selected if event["_date"] == day]
         done = sum(
@@ -99,20 +123,18 @@ def render_daily_chart(selected, statuses, start_date, end_date):
         })
 
     chart_df = pd.DataFrame(rows).set_index("날짜")
-    st.bar_chart(chart_df, height=250)
+    st.bar_chart(chart_df, height=280)
+    st.caption("막대의 두 항목은 해당 날짜의 완료 일정과 미완료 일정 수를 나타냅니다.")
 
 
 def render_category_summary(selected, statuses):
     category_counts = {}
     for event in selected:
-        categories = get_categories(event.get("categories"))
-        if not categories:
-            categories = ["분류 없음"]
-
+        categories = get_categories(event.get("categories")) or ["분류 없음"]
         for category in categories:
             if category not in category_counts:
-                category_counts[category] = {"전체": 0, "완료": 0}
-            category_counts[category]["전체"] += 1
+                category_counts[category] = {"전체 일정": 0, "완료": 0}
+            category_counts[category]["전체 일정"] += 1
             if statuses.get(str(event["id"]), False):
                 category_counts[category]["완료"] += 1
 
@@ -121,22 +143,49 @@ def render_category_summary(selected, statuses):
         return
 
     table_rows = []
-    for category, counts in sorted(category_counts.items()):
-        total = counts["전체"]
+    for category, counts in category_counts.items():
+        total = counts["전체 일정"]
         completed = counts["완료"]
-        rate = completed / total if total else 0
         table_rows.append({
             "분류": category,
-            "전체": total,
+            "전체 일정": total,
             "완료": completed,
-            "완료율": f"{rate:.0%}",
+            "미완료": total - completed,
+            "완료율": completed / total if total else 0,
         })
 
+    summary_df = pd.DataFrame(table_rows).sort_values("분류")
     st.dataframe(
-        pd.DataFrame(table_rows),
+        summary_df,
         hide_index=True,
         use_container_width=True,
+        column_config={
+            "전체 일정": st.column_config.NumberColumn(format="%d개"),
+            "완료": st.column_config.NumberColumn(format="%d개"),
+            "미완료": st.column_config.NumberColumn(format="%d개"),
+            "완료율": st.column_config.ProgressColumn(
+                "완료율", min_value=0, max_value=1, format="%.0f%%"
+            ),
+        },
     )
+
+
+def render_period_section(label, selected, total, completed, remaining, rate,
+                          start_date, end_date, statuses):
+    st.markdown(f'<div class="stat-heading">{label} 요약</div>', unsafe_allow_html=True)
+    render_metrics(total, completed, remaining, rate)
+
+    st.divider()
+    st.subheader("날짜별 진행 현황")
+    st.markdown('<div class="section-intro">날짜마다 완료한 일정과 남은 일정을 비교할 수 있어요.</div>', unsafe_allow_html=True)
+    if selected:
+        render_daily_chart(selected, statuses, start_date, end_date)
+        st.divider()
+        st.subheader("분류별 진행 현황")
+        st.markdown('<div class="section-intro">어떤 종류의 일정이 얼마나 완료되었는지 확인해 보세요.</div>', unsafe_allow_html=True)
+        render_category_summary(selected, statuses)
+    else:
+        st.info("선택한 기간에는 등록된 일정이 없습니다.")
 
 
 # ---------- 로그인 ----------
@@ -153,7 +202,7 @@ client = get_supabase()
 left, right = st.columns([5, 1])
 with left:
     st.title("하루결")
-    st.caption("기록을 돌아보고 계획을 점검해 보세요.")
+    st.caption("나의 일정 진행 상황을 한눈에 확인하세요.")
 with right:
     if st.button("로그아웃", use_container_width=True):
         sign_out()
@@ -161,6 +210,10 @@ with right:
 
 st.divider()
 st.header("주간·월간 통계")
+st.markdown(
+    '<div class="section-intro">기준 날짜를 선택하면 해당 날짜가 포함된 주와 달의 통계를 보여 줍니다.</div>',
+    unsafe_allow_html=True,
+)
 
 # ---------- 데이터 ----------
 try:
@@ -169,16 +222,14 @@ try:
         .select("id,event_date,title,categories,importance")
         .eq("user_id", uid)
         .execute()
-        .data
-        or []
+        .data or []
     )
     status_rows = (
         client.table("todo_status")
         .select("event_id,completed")
         .eq("user_id", uid)
         .execute()
-        .data
-        or []
+        .data or []
     )
 except Exception as exc:
     st.error("통계 데이터를 불러오지 못했습니다.")
@@ -194,69 +245,51 @@ statuses = {
 events = []
 for row in event_rows:
     parsed_date = parse_event_date(row.get("event_date"))
-    if parsed_date is None:
-        continue
-    event = dict(row)
-    event["_date"] = parsed_date
-    events.append(event)
+    if parsed_date is not None:
+        event = dict(row)
+        event["_date"] = parsed_date
+        events.append(event)
 
 if not events:
     st.info("통계를 표시할 일정이 아직 없습니다. 캘린더에서 일정을 추가해 보세요.")
     st.page_link("main.py", label="캘린더로 이동")
     st.stop()
 
-# 기준 날짜를 선택해 해당 날짜가 포함된 주와 월을 조회
 reference_date = st.date_input(
-    "기준 날짜",
+    "통계 기준 날짜",
     value=date.today(),
     help="선택한 날짜가 포함된 주간·월간 통계를 보여 줍니다.",
 )
 
 week_start = reference_date - timedelta(days=reference_date.weekday())
 week_end = week_start + timedelta(days=6)
-
 month_start = reference_date.replace(day=1)
-month_last_day = calendar.monthrange(reference_date.year, reference_date.month)[1]
-month_end = reference_date.replace(day=month_last_day)
+month_end = reference_date.replace(
+    day=calendar.monthrange(reference_date.year, reference_date.month)[1]
+)
 
 weekly_tab, monthly_tab = st.tabs(["주간 통계", "월간 통계"])
 
-# ---------- 주간 ----------
 with weekly_tab:
-    st.subheader(f"{week_start:%Y년 %m월 %d일} – {week_end:%m월 %d일}")
+    st.subheader(f"{week_start:%Y.%m.%d} – {week_end:%Y.%m.%d}")
     selected, total, completed, remaining, rate = summarize_period(
         events, statuses, week_start, week_end
     )
+    render_period_section(
+        "이번 주", selected, total, completed, remaining, rate,
+        week_start, week_end, statuses,
+    )
 
-    render_metrics(total, completed, remaining, rate)
-    st.progress(rate, text=f"이번 주 완료율 {rate:.0%}")
-
-    st.markdown("#### 날짜별 일정")
-    if selected:
-        render_daily_chart(selected, statuses, week_start, week_end)
-        st.markdown("#### 분류별 현황")
-        render_category_summary(selected, statuses)
-    else:
-        st.info("선택한 주에는 등록된 일정이 없습니다.")
-
-# ---------- 월간 ----------
 with monthly_tab:
     st.subheader(f"{reference_date:%Y년 %m월}")
     selected, total, completed, remaining, rate = summarize_period(
         events, statuses, month_start, month_end
     )
-
-    render_metrics(total, completed, remaining, rate)
-    st.progress(rate, text=f"이번 달 완료율 {rate:.0%}")
-
-    st.markdown("#### 날짜별 일정")
-    if selected:
-        render_daily_chart(selected, statuses, month_start, month_end)
-        st.markdown("#### 분류별 현황")
-        render_category_summary(selected, statuses)
-    else:
-        st.info("선택한 달에는 등록된 일정이 없습니다.")
+    render_period_section(
+        "이번 달", selected, total, completed, remaining, rate,
+        month_start, month_end, statuses,
+    )
 
 st.divider()
-st.page_link("pages/list.py", label="플래너로 돌아가기")
-st.page_link("main.py", label="캘린더로 돌아가기")
+st.page_link("pages/list.py", label="To-do 리스트로 이동")
+st.page_link("main.py", label="캘린더로 이동")
