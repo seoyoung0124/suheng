@@ -1,5 +1,5 @@
 import uuid
-from datetime import date, datetime
+from datetime import date, datetime, timedelta, timezone
 
 import streamlit as st
 from streamlit_calendar import calendar
@@ -250,9 +250,13 @@ def date_from(value):
         return None
 
     try:
-        return datetime.fromisoformat(
-            str(value).replace("Z", "+00:00")
-        ).date().isoformat()
+        dt = datetime.fromisoformat(str(value).replace("Z", "+00:00"))
+
+        # 시간대(UTC 등)가 붙은 값은 한국 시간(UTC+9)으로 바꿔서 날짜를 뽑는다
+        if dt.tzinfo is not None:
+            dt = dt.astimezone(timezone(timedelta(hours=9)))
+
+        return dt.date().isoformat()
     except ValueError:
         try:
             return date.fromisoformat(str(value)[:10]).isoformat()
