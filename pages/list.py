@@ -1,203 +1,192 @@
-from datetime import date
+from datetime import date, datetime, timedelta, timezone
+
 import streamlit as st
-from supabase_utils import get_supabase, current_user_id, sign_out
+
+
+# ==========================================
+# 1. 기본 설정
+# ==========================================
 
 st.set_page_config(
     page_title="하루결 | 플래너",
-    page_icon="🗓️",
-    layout="centered",
+    page_icon="📒",
+    layout="centered"
 )
 
-# ---------- 기본 스타일 ----------
-st.markdown(
-    """
-    <style>
-    .block-container {
-        max-width: 760px;
-        padding-top: 2.2rem;
-        padding-bottom: 3rem;
-    }
-    h1, h2, h3 {
-        letter-spacing: -0.04em;
-    }
-    div[data-testid="stMetric"] {
-        background: #f7f8fa;
-        border: 1px solid #eceef1;
-        padding: 14px 16px;
-        border-radius: 12px;
-    }
-    div[data-testid="stCheckbox"] {
-        padding-top: 8px;
-    }
-    </style>
-    """,
-    unsafe_allow_html=True,
-)
+KST = timezone(timedelta(hours=9))
+WEEKDAYS = ["월", "화", "수", "목", "금", "토", "일"]
 
-# ---------- 로그인 확인 ----------
-uid = current_user_id()
-if not uid:
-    st.title("로그인이 필요해요")
-    st.caption("하루결 플래너를 이용하려면 먼저 로그인해 주세요.")
-    st.page_link("main.py", label="캘린더로 이동")
+CATEGORIES = [
+    "수행평가", "시험", "동아리",
+    "개인일정", "과제", "학교행사", "기타"
+]
+
+IMPORTANCE_ICON = {"상": "🔴", "중": "🟡", "하": "🟢", "없음": "🟣"}
+IMPORTANCE_ORDER = {"상": 0, "중": 1, "하": 2, "없음": 3}
+PERSONAL_ICON = "🔵"
+
+
+def today_kst():
+    # 서버가 UTC여도 한국 시간 기준으로 오늘 날짜를 구한다
+    return datetime.now(KST).date()
+
+
+# ==========================================
+# 2. 로그인 확인 (main.py에서 로그인한 세션을 그대로 사용)
+# ==========================================
+
+client = st.session_state.get("supabase_client")
+uid = st.session_state.get("user_id")
+
+if not client or not uid:
+    st.title("📒 오늘의 플래너")
+    st.info("먼저 캘린더 화면에서 로그인해 주세요.")
+
+    try:
+        st.page_link("main.py", label="로그인하러 가기", icon="🗓️")
+    except Exception:
+        pass
+
     st.stop()
 
-client = get_supabase()
 
-# ---------- 상단 ----------
-top_left, top_right = st.columns([5, 1])
-with top_left:
-    st.title("하루결")
-    st.caption("오늘의 계획을 차분하게 정리해 보세요.")
-with top_right:
-    if st.button("로그아웃", use_container_width=True):
-        sign_out()
-        st.rerun()
+# ==========================================
+# 3. 선택한 날짜의 일정 불러오기
+# ==========================================
 
-st.divider()
-
-# ---------- 데이터 불러오기 ----------
-try:
+def fetch_day_events(client, uid, day):
     rows = (
         client.table("events")
-        .select("id,event_date,title,description,importance,categories")
+        .select("*")
         .eq("user_id", uid)
-        .order("event_date")
+        .eq("event_date", day.isoformat())
         .execute()
-        .data
-        or []
+        .data or []
     )
-    status_rows = (
-        client.table("todo_status")
-        .select("event_id,completed")
-        .eq("user_id", uid)
-        .execute()
-        .data
-        or []
+
+    result = []
+
+    for r in rows:
+        cats = r.get("categories") or []
+
+        if isinstance(cats, str):
+            cats = [cats]
+
+        importance = r.get("importance")
+
+        result.append({
+            "id": str(r["id"]),
+            "title": r.get("title") or "(제목 없음)",
+            "description": r.get("description") or "",
+            "importance": importance if importance in IMPORTANCE_ORDER else "없음",
+            "categories": [x for x in cats if x in CATEGORIES]
+        })
+
+    # 중요한 일정이 위로 오도록 정렬
+    result.sort(key=lambda e: (IMPORTANCE_ORDER[e["importance"]], e["title"]))
+    return result
+
+
+def day_label(day):
+    diff = (day - today_kst()).days
+
+    if diff == 0:
+        return "오늘"
+    if diff > 0:
+        return f"D-{diff}"
+    return f"D+{-diff}"
+
+
+# ==========================================
+# 4. 날짜 이동 (화살표 / 날짜 선택 / 오늘 버튼)
+# ==========================================
+
+if "planner_picker" not in st.session_state:
+    st.session_state.planner_picker = today_kst()
+
+
+def shift_day(delta):
+    st.session_state.planner_picker += timedelta(days=delta)
+
+
+def go_today():
+    st.session_state.planner_picker = today_kst()
+
+
+st.title("📒 플래너")
+
+_, pick_col, today_col, _ = st.columns([1, 3, 1.2, 1], vertical_alignment="bottom")
+
+with pick_col:
+    day = st.date_input("날짜 선택", key="planner_picker", format="YYYY-MM-DD")
+
+with today_col:
+    st.button("오늘", on_click=go_today, use_container_width=True, key="go_today")
+
+
+# ==========================================
+# 5. 플래너 (가운데) + 전날/다음날 화살표 (양 옆)
+# ==========================================
+
+left, center, right = st.columns([1, 6, 1], vertical_alignment="center")
+
+with left:
+    st.button(
+        "◀", on_click=shift_day, args=(-1,),
+        use_container_width=True, key="prev_day", help="전날"
     )
-except Exception as exc:
-    st.error("일정을 불러오지 못했습니다.")
-    st.caption(str(exc))
-    st.info("Supabase의 events와 todo_status 테이블 및 user_id 설정을 확인해 주세요.")
-    st.stop()
 
-statuses = {
-    str(row["event_id"]): bool(row.get("completed", False))
-    for row in status_rows
-}
-events = [row for row in rows if row.get("event_date")]
-events.sort(key=lambda row: (str(row["event_date"]), row.get("title") or ""))
-
-if not events:
-    st.info("아직 등록된 일정이 없어요.")
-    st.page_link("main.py", label="캘린더에서 첫 일정 추가하기")
-    st.stop()
-
-# ---------- 필터 ----------
-today = date.today().isoformat()
-with st.expander("필터", expanded=False):
-    date_filter = st.selectbox(
-        "기간",
-        ["전체", "오늘", "오늘 이후", "지난 일정"],
-        label_visibility="collapsed",
+with right:
+    st.button(
+        "▶", on_click=shift_day, args=(1,),
+        use_container_width=True, key="next_day", help="다음날"
     )
-    category_list = sorted({
-        category
-        for event in events
-        for category in (event.get("categories") or [])
-        if isinstance(category, str)
-    })
-    category_filter = st.selectbox("카테고리", ["전체"] + category_list)
-    importance_filter = st.selectbox("중요도", ["전체", "상", "중", "하", "없음"])
 
-filtered = []
-for event in events:
-    event_date = str(event["event_date"])[:10]
-    categories = event.get("categories") or []
-
-    if date_filter == "오늘" and event_date != today:
-        continue
-    if date_filter == "오늘 이후" and event_date < today:
-        continue
-    if date_filter == "지난 일정" and event_date >= today:
-        continue
-    if category_filter != "전체" and category_filter not in categories:
-        continue
-    if importance_filter != "전체" and (event.get("importance") or "없음") != importance_filter:
-        continue
-
-    filtered.append(event)
-
-if not filtered:
-    st.info("선택한 조건에 해당하는 일정이 없어요.")
-    st.stop()
-
-# ---------- 진행 현황 ----------
-completed_count = sum(
-    1 for event in filtered if statuses.get(str(event["id"]), False)
-)
-total_count = len(filtered)
-remaining_count = total_count - completed_count
-progress = completed_count / total_count if total_count else 0
-
-st.subheader("나의 플래너")
-st.caption(f"{date.today().strftime('%Y년 %m월 %d일')} 기준")
-
-metric1, metric2, metric3 = st.columns(3)
-metric1.metric("전체", f"{total_count}개")
-metric2.metric("완료", f"{completed_count}개")
-metric3.metric("남은 일", f"{remaining_count}개")
-
-st.progress(progress, text=f"오늘의 진행률이 아닌, 현재 필터에 표시된 일정의 완료율 {progress:.0%}")
-
-st.divider()
-
-# ---------- 일정 목록 ----------
-st.subheader("일정")
-
-for event in filtered:
-    event_id = str(event["id"])
-    is_done = statuses.get(event_id, False)
-    title = (event.get("title") or "").strip() or "제목 없는 일정"
-    event_date = str(event["event_date"])[:10]
-    categories = event.get("categories") or []
-    importance = event.get("importance") or "없음"
+with center:
+    try:
+        day_events = fetch_day_events(client, uid, day)
+    except Exception as exc:
+        st.error(f"일정을 불러오지 못했습니다: {exc}")
+        st.stop()
 
     with st.container(border=True):
-        check_col, text_col = st.columns([0.08, 0.92])
-        with check_col:
-            checked = st.checkbox(
-                "완료",
-                value=is_done,
-                key=f"planner_done_{event_id}",
-                label_visibility="collapsed",
-            )
-        with text_col:
-            if is_done:
-                st.markdown(f"~~**{title}**~~")
-            else:
-                st.markdown(f"**{title}**")
-            meta = f"{event_date}  ·  중요도 {importance}"
-            if categories:
-                meta += f"  ·  {', '.join(categories)}"
-            st.caption(meta)
-            if event.get("description"):
-                st.write(event["description"])
+        st.caption(f"{day_label(day)} · 일정 {len(day_events)}개")
+        st.subheader(
+            f"{day.year}년 {day.month}월 {day.day}일 ({WEEKDAYS[day.weekday()]})"
+        )
+        st.divider()
 
-    if checked != is_done:
-        try:
-            client.table("todo_status").upsert(
-                {
-                    "event_id": event_id,
-                    "user_id": uid,
-                    "completed": checked,
-                },
-                on_conflict="event_id",
-            ).execute()
-            st.rerun()
-        except Exception as exc:
-            st.error("완료 상태를 저장하지 못했습니다.")
-            st.caption(str(exc))
+        if not day_events:
+            st.write("이 날은 등록된 일정이 없어요.")
+
+        for e in day_events:
+            icon = (
+                PERSONAL_ICON
+                if "개인일정" in e["categories"]
+                else IMPORTANCE_ICON[e["importance"]]
+            )
+
+            st.markdown(f"{icon} **{e['title']}**")
+
+            info = []
+            if e["importance"] != "없음":
+                info.append(f"중요도 {e['importance']}")
+            if e["categories"]:
+                info.append(", ".join(e["categories"]))
+            if info:
+                st.caption(" · ".join(info))
+
+            if e["description"]:
+                st.write(e["description"])
+
+
+# ==========================================
+# 6. 캘린더로 돌아가기
+# ==========================================
 
 st.divider()
-st.page_link("main.py", label="← 캘린더로 돌아가기")
+
+try:
+    st.page_link("main.py", label="캘린더로 돌아가기", icon="🗓️")
+except Exception:
+    pass
