@@ -7,7 +7,8 @@ import theme
 st.set_page_config(
     page_title="하루결 | My Planner",
     page_icon="📒",
-    layout="wide"
+    layout="wide",
+    initial_sidebar_state="expanded"
 )
 
 client, uid = theme.page_setup("planner")
@@ -15,6 +16,8 @@ client, uid = theme.page_setup("planner")
 esc = theme.esc
 ORDER = theme.IMPORTANCE_ORDER
 today = theme.today_kst()
+
+MIN_SLOTS = 5  # 일정이 없어도 항상 보이는 최소 칸 수
 
 
 # ==========================================
@@ -195,13 +198,6 @@ with c_mid:
             unsafe_allow_html=True
         )
 
-        if not day_events:
-            st.markdown(
-                '<div class="planner-empty">이 날은 등록된 할 일이 없어요.<br>'
-                '<small>캘린더에서 일정을 추가해 보세요.</small></div>',
-                unsafe_allow_html=True
-            )
-
         for e in day_events:
             kind = "done" if e["done"] else "todo"
 
@@ -239,6 +235,20 @@ with c_mid:
                         f'<div class="item-meta">{"<br>".join(lines)}</div>',
                         unsafe_allow_html=True
                     )
+
+        # 일정이 MIN_SLOTS개보다 적어도 빈 칸으로 채워서 항상 5줄 높이를 유지한다.
+        # 일정이 그 이상이면 칸이 늘어난다.
+        for i in range(total, max(MIN_SLOTS, total)):
+            with st.container(key=f"item_empty_{i}"):
+                hint = (
+                    "이 날은 등록된 일정이 없어요. 캘린더에서 추가해 보세요."
+                    if total == 0 and i == 0
+                    else "&nbsp;"
+                )
+                st.markdown(
+                    f'<div class="item-empty">{hint}</div>',
+                    unsafe_allow_html=True
+                )
 
         pal = theme.palette()
 
