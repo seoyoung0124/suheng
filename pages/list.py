@@ -51,7 +51,7 @@ if not client or not uid:
 
 
 # ==========================================
-# 3. 선택한 날짜의 일정 불러오기
+# 3. 선택한 날짜의 일정 불러오기 / 완료 상태 저장
 # ==========================================
 
 def fetch_day_events(client, uid, day):
@@ -79,12 +79,28 @@ def fetch_day_events(client, uid, day):
             "title": r.get("title") or "(제목 없음)",
             "description": r.get("description") or "",
             "importance": importance if importance in IMPORTANCE_ORDER else "없음",
-            "categories": [x for x in cats if x in CATEGORIES]
+            "categories": [x for x in cats if x in CATEGORIES],
+            "done": bool(r.get("done"))
         })
 
     # 중요한 일정이 위로 오도록 정렬
     result.sort(key=lambda e: (IMPORTANCE_ORDER[e["importance"]], e["title"]))
     return result
+
+
+def toggle_done(event_id):
+    key = f"done_{event_id}"
+    new_value = bool(st.session_state.get(key, False))
+
+    try:
+        st.session_state.supabase_client.table("events").update(
+            {"done": new_value}
+        ).eq("id", event_id).eq(
+            "user_id", st.session_state.user_id
+        ).execute()
+    except Exception as exc:
+        st.session_state[key] = not new_value
+        st.toast(f"완료 상태를 저장하지 못했습니다: {exc}")
 
 
 def day_label(day):
@@ -147,13 +163,21 @@ with center:
         day_events = fetch_day_events(client, uid, day)
     except Exception as exc:
         st.error(f"일정을 불러오지 못했습니다: {exc}")
+        st.info("Supabase events 테이블에 done 컬럼이 있는지 확인해 주세요.")
         st.stop()
 
+    total = len(day_events)
+    done_count = sum(e["done"] for e in day_events)
+
     with st.container(border=True):
-        st.caption(f"{day_label(day)} · 일정 {len(day_events)}개")
+        st.caption(f"{day_label(day)} · 일정 {total}개 · 완료 {done_count}/{total}")
         st.subheader(
             f"{day.year}년 {day.month}월 {day.day}일 ({WEEKDAYS[day.weekday()]})"
         )
+
+        if total:
+            st.progress(done_count / total)
+
         st.divider()
 
         if not day_events:
@@ -166,7 +190,15 @@ with center:
                 else IMPORTANCE_ICON[e["importance"]]
             )
 
-            st.markdown(f"{icon} **{e['title']}**")
+            title = f"~~{e['title']}~~" if e["done"] else f"**{e['title']}**"
+
+            st.checkbox(
+                f"{icon} {title}",
+                value=e["done"],
+                key=f"done_{e['id']}",
+                on_change=toggle_done,
+                args=(e["id"],)
+            )
 
             info = []
             if e["importance"] != "없음":
