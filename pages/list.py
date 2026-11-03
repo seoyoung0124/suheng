@@ -1,57 +1,24 @@
-from datetime import date, datetime, timedelta, timezone
+from datetime import timedelta
 
 import streamlit as st
 
-
-# ==========================================
-# 1. 기본 설정
-# ==========================================
+import theme
 
 st.set_page_config(
-    page_title="하루결 | 플래너",
+    page_title="하루결 | My Planner",
     page_icon="📒",
-    layout="centered"
+    layout="wide"
 )
 
-KST = timezone(timedelta(hours=9))
-WEEKDAYS = ["월", "화", "수", "목", "금", "토", "일"]
+client, uid = theme.page_setup("planner")
 
-CATEGORIES = [
-    "수행평가", "시험", "동아리",
-    "개인일정", "과제", "학교행사", "기타"
-]
-
-IMPORTANCE_ICON = {"상": "🔴", "중": "🟡", "하": "🟢", "없음": "🟣"}
-IMPORTANCE_ORDER = {"상": 0, "중": 1, "하": 2, "없음": 3}
-PERSONAL_ICON = "🔵"
-
-
-def today_kst():
-    # 서버가 UTC여도 한국 시간 기준으로 오늘 날짜를 구한다
-    return datetime.now(KST).date()
+esc = theme.esc
+ORDER = theme.IMPORTANCE_ORDER
+today = theme.today_kst()
 
 
 # ==========================================
-# 2. 로그인 확인 (main.py에서 로그인한 세션을 그대로 사용)
-# ==========================================
-
-client = st.session_state.get("supabase_client")
-uid = st.session_state.get("user_id")
-
-if not client or not uid:
-    st.title("📒 오늘의 플래너")
-    st.info("먼저 캘린더 화면에서 로그인해 주세요.")
-
-    try:
-        st.page_link("main.py", label="로그인하러 가기", icon="🗓️")
-    except Exception:
-        pass
-
-    st.stop()
-
-
-# ==========================================
-# 3. 선택한 날짜의 일정 불러오기 / 완료 상태 저장
+# 1. 일정 불러오기 / 완료 상태 저장
 # ==========================================
 
 def fetch_day_events(client, uid, day):
@@ -78,20 +45,38 @@ def fetch_day_events(client, uid, day):
             "id": str(r["id"]),
             "title": r.get("title") or "(제목 없음)",
             "description": r.get("description") or "",
-            "importance": importance if importance in IMPORTANCE_ORDER else "없음",
-            "categories": [x for x in cats if x in CATEGORIES],
+            "importance": importance if importance in ORDER else "없음",
+            "categories": [x for x in cats if x in theme.CATEGORIES],
             "done": bool(r.get("done"))
         })
 
-    # 중요한 일정이 위로 오도록 정렬
-    result.sort(key=lambda e: (IMPORTANCE_ORDER[e["importance"]], e["title"]))
+    # 중요한 일정이 위. 완료 여부로는 정렬하지 않아서 체크해도 줄이 움직이지 않는다
+    result.sort(key=lambda e: (ORDER[e["importance"]], e["title"]))
     return result
 
 
-def toggle_done(event_id):
-    key = f"done_{event_id}"
-    new_value = bool(st.session_state.get(key, False))
+def fetch_week_counts(client, uid, start, end):
+    rows = (
+        client.table("events")
+        .select("event_date,done")
+        .eq("user_id", uid)
+        .gte("event_date", start.isoformat())
+        .lte("event_date", end.isoformat())
+        .execute()
+        .data or []
+    )
 
+    counts = {}
+
+    for r in rows:
+        key = str(r["event_date"])[:10]
+        total, done = counts.get(key, (0, 0))
+        counts[key] = (total + 1, done + (1 if r.get("done") else 0))
+
+    return counts
+
+
+def toggle_done(event_id, new_value):
     try:
         st.session_state.supabase_client.table("events").update(
             {"done": new_value}
@@ -99,26 +84,17 @@ def toggle_done(event_id):
             "user_id", st.session_state.user_id
         ).execute()
     except Exception as exc:
-        st.session_state[key] = not new_value
         st.toast(f"완료 상태를 저장하지 못했습니다: {exc}")
 
 
-def day_label(day):
-    diff = (day - today_kst()).days
-
-    if diff == 0:
-        return "오늘"
-    if diff > 0:
-        return f"D-{diff}"
-    return f"D+{-diff}"
-
-
 # ==========================================
-# 4. 날짜 이동 (화살표 / 날짜 선택 / 오늘 버튼)
+# 2. 날짜 이동 (화살표 / 날짜 선택 / 주간 보기)
 # ==========================================
 
 if "planner_picker" not in st.session_state:
-    st.session_state.planner_picker = today_kst()
+    st.session_state.planner_picker = today
+
+st.session_state.setdefault("show_week", False)
 
 
 def shift_day(delta):
@@ -126,99 +102,205 @@ def shift_day(delta):
 
 
 def go_today():
-    st.session_state.planner_picker = today_kst()
+    st.session_state.planner_picker = theme.today_kst()
 
 
-st.title("📒 플래너")
+def pick_day(day):
+    st.session_state.planner_picker = day
 
-_, pick_col, today_col, _ = st.columns([1, 3, 1.2, 1], vertical_alignment="bottom")
 
-with pick_col:
-    day = st.date_input("날짜 선택", key="planner_picker", format="YYYY-MM-DD")
-
-with today_col:
-    st.button("오늘", on_click=go_today, use_container_width=True, key="go_today")
+def toggle_week():
+    st.session_state.show_week = not st.session_state.show_week
 
 
 # ==========================================
-# 5. 플래너 (가운데) + 전날/다음날 화살표 (양 옆)
+# 3. 상단: 날짜 선택 / 날짜 표시 / 주간 보기 버튼
 # ==========================================
 
-left, center, right = st.columns([1, 6, 1], vertical_alignment="center")
+h_pick, h_date, h_week = st.columns([1.7, 5, 1.8], vertical_alignment="center")
 
-with left:
-    st.button(
-        "◀", on_click=shift_day, args=(-1,),
-        use_container_width=True, key="prev_day", help="전날"
+with h_pick:
+    day = st.date_input(
+        "날짜 선택", key="planner_picker",
+        format="YYYY-MM-DD", label_visibility="collapsed"
     )
 
-with right:
-    st.button(
-        "▶", on_click=shift_day, args=(1,),
-        use_container_width=True, key="next_day", help="다음날"
+week_start = day - timedelta(days=day.weekday())
+week_end = week_start + timedelta(days=6)
+same_week = week_start <= today <= week_end
+
+with h_date:
+    st.markdown(
+        '<div class="date-head"><span class="line"></span>'
+        f'<span class="date-chip">🗓 {theme.WEEKDAYS_EN[day.weekday()]}, '
+        f'{theme.MONTHS_EN[day.month - 1]} {day.day}</span>'
+        '<span class="line"></span></div>',
+        unsafe_allow_html=True
     )
 
-with center:
-    try:
-        day_events = fetch_day_events(client, uid, day)
-    except Exception as exc:
-        st.error(f"일정을 불러오지 못했습니다: {exc}")
-        st.info("Supabase events 테이블에 done 컬럼이 있는지 확인해 주세요.")
-        st.stop()
+with h_week:
+    if st.session_state.show_week:
+        week_label = "주간 보기 닫기"
+    else:
+        week_label = "이번 주 보기" if same_week else "이 주 보기"
 
-    total = len(day_events)
-    done_count = sum(e["done"] for e in day_events)
-
-    with st.container(border=True):
-        st.caption(f"{day_label(day)} · 일정 {total}개 · 완료 {done_count}/{total}")
-        st.subheader(
-            f"{day.year}년 {day.month}월 {day.day}일 ({WEEKDAYS[day.weekday()]})"
-        )
-
-        if total:
-            st.progress(done_count / total)
-
-        st.divider()
-
-        if not day_events:
-            st.write("이 날은 등록된 일정이 없어요.")
-
-        for e in day_events:
-            icon = (
-                PERSONAL_ICON
-                if "개인일정" in e["categories"]
-                else IMPORTANCE_ICON[e["importance"]]
-            )
-
-            title = f"~~{e['title']}~~" if e["done"] else f"**{e['title']}**"
-
-            st.checkbox(
-                f"{icon} {title}",
-                value=e["done"],
-                key=f"done_{e['id']}",
-                on_change=toggle_done,
-                args=(e["id"],)
-            )
-
-            info = []
-            if e["importance"] != "없음":
-                info.append(f"중요도 {e['importance']}")
-            if e["categories"]:
-                info.append(", ".join(e["categories"]))
-            if info:
-                st.caption(" · ".join(info))
-
-            if e["description"]:
-                st.write(e["description"])
+    st.button(
+        week_label, key="week_toggle", icon=":material/bar_chart:",
+        on_click=toggle_week, use_container_width=True
+    )
 
 
 # ==========================================
-# 6. 캘린더로 돌아가기
+# 4. 플래너 카드 (가운데) + 전날 / 다음날 화살표 (양 옆)
 # ==========================================
-
-st.divider()
 
 try:
-    st.page_link("main.py", label="캘린더로 돌아가기", icon="🗓️")
-except Exception:
-    pass
+    day_events = fetch_day_events(client, uid, day)
+except Exception as exc:
+    st.error(f"일정을 불러오지 못했습니다: {exc}")
+    st.info("Supabase events 테이블에 done 컬럼이 있는지 확인해 주세요. (schema.sql 실행)")
+    st.stop()
+
+total = len(day_events)
+done_count = sum(e["done"] for e in day_events)
+important = sum(e["importance"] == "상" for e in day_events)
+remaining = total - done_count
+percent = round(done_count / total * 100) if total else 0
+
+_, c_prev, c_mid, c_next, _ = st.columns(
+    [2, 0.8, 4.8, 0.8, 2], vertical_alignment="center"
+)
+
+with c_prev:
+    st.button("‹", key="prev_day", on_click=shift_day, args=(-1,), help="전날")
+
+with c_next:
+    st.button("›", key="next_day", on_click=shift_day, args=(1,), help="다음날")
+
+with c_mid:
+    card_title = "오늘의 할 일" if day == today else f"{day.month}월 {day.day}일의 할 일"
+
+    with st.container(key="planner_card"):
+        st.markdown(
+            '<div class="rings">' + "<i></i>" * 7 + "</div>",
+            unsafe_allow_html=True
+        )
+
+        st.markdown(
+            '<div class="card-head">'
+            f'<div class="card-title">{esc(card_title)}</div>'
+            f'<div class="card-count">{done_count} / {total} 완료</div>'
+            '</div>'
+            f'<div class="pbar"><div style="width:{percent}%"></div></div>',
+            unsafe_allow_html=True
+        )
+
+        if not day_events:
+            st.markdown(
+                '<div class="planner-empty">이 날은 등록된 할 일이 없어요.<br>'
+                '<small>캘린더에서 일정을 추가해 보세요.</small></div>',
+                unsafe_allow_html=True
+            )
+
+        for e in day_events:
+            kind = "done" if e["done"] else "todo"
+
+            with st.container(key=f"item_{kind}_{e['id']}"):
+                st.button(
+                    f"~~{e['title']}~~" if e["done"] else e["title"],
+                    key=f"tgl_{e['id']}",
+                    icon=(
+                        ":material/check_circle:"
+                        if e["done"]
+                        else ":material/radio_button_unchecked:"
+                    ),
+                    on_click=toggle_done,
+                    args=(e["id"], not e["done"]),
+                    use_container_width=True
+                )
+
+                info = []
+
+                if e["importance"] != "없음":
+                    info.append(f"중요도 {e['importance']}")
+
+                info += e["categories"]
+
+                lines = []
+
+                if info:
+                    lines.append(esc(" · ".join(info)))
+
+                if e["description"]:
+                    lines.append(esc(e["description"]))
+
+                if lines:
+                    st.markdown(
+                        f'<div class="item-meta">{"<br>".join(lines)}</div>',
+                        unsafe_allow_html=True
+                    )
+
+        pal = theme.palette()
+
+        st.markdown(
+            '<div class="tiles">'
+            f'<div class="tile" style="background:{pal["tile1"]};color:{pal["tile1_text"]}">'
+            '<div class="t">☆ 중요 일정</div>'
+            f'<div class="n">{important}</div></div>'
+            f'<div class="tile" style="background:{pal["tile2"]};color:{pal["tile2_text"]}">'
+            '<div class="t">📅 남은 일정</div>'
+            f'<div class="n">{remaining}</div></div>'
+            '</div>',
+            unsafe_allow_html=True
+        )
+
+    if day != today:
+        st.write("")
+        st.button(
+            "오늘로 돌아가기", key="go_today", on_click=go_today,
+            icon=":material/today:", use_container_width=True
+        )
+
+
+# ==========================================
+# 5. 주간 보기
+# ==========================================
+
+if st.session_state.show_week:
+    try:
+        counts = fetch_week_counts(client, uid, week_start, week_end)
+    except Exception as exc:
+        counts = {}
+        st.warning(f"주간 일정을 불러오지 못했습니다: {exc}")
+
+    st.write("")
+
+    _, w_mid, _ = st.columns([1, 8, 1])
+
+    with w_mid:
+        with st.container(key="week_panel"):
+            st.markdown(
+                '<div class="panel-title"><i></i>'
+                f'{week_start.month}월 {week_start.day}일 ~ '
+                f'{week_end.month}월 {week_end.day}일</div>',
+                unsafe_allow_html=True
+            )
+
+            cols = st.columns(7)
+
+            for i, col in enumerate(cols):
+                d = week_start + timedelta(days=i)
+                t, dn = counts.get(d.isoformat(), (0, 0))
+
+                with col:
+                    st.button(
+                        f"{theme.WEEKDAYS_KR[i]} {d.day}",
+                        key=f"week_{d.isoformat()}",
+                        type="primary" if d == day else "secondary",
+                        on_click=pick_day, args=(d,),
+                        use_container_width=True
+                    )
+                    st.markdown(
+                        f'<div class="week-note">{f"{dn}/{t} 완료" if t else "일정 없음"}</div>',
+                        unsafe_allow_html=True
+                    )
