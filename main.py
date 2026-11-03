@@ -1,4 +1,3 @@
-
 import uuid
 from datetime import date, datetime
 
@@ -327,6 +326,18 @@ for e in events:
         "textColor": "#263238"
     })
 
+# cal_ver: 바뀌면 캘린더가 새로 만들어져 이전 클릭 값이 초기화됩니다.
+# cal_start_date: 캘린더를 새로 만들 때 시작할 달 (클릭한 날짜의 달)
+st.session_state.setdefault("cal_ver", 0)
+st.session_state.setdefault("cal_start_date", date.today().isoformat())
+
+
+def refresh_calendar(start_date):
+    """캘린더를 새로 만들되, 클릭한 날짜가 있는 달을 계속 보여준다."""
+    if start_date:
+        st.session_state.cal_start_date = start_date
+    st.session_state.cal_ver += 1
+
 
 st.subheader("나의 월간 캘린더")
 
@@ -334,6 +345,7 @@ state = calendar(
     events=cal_events,
     options={
         "initialView": "dayGridMonth",
+        "initialDate": st.session_state.cal_start_date,
         "locale": "ko",
         "timeZone": "local",
         "height": 680,
@@ -354,7 +366,7 @@ state = calendar(
         "fixedWeekCount": False
     },
     callbacks=["dateClick", "eventClick"],
-    key="main_calendar"
+    key=f"main_calendar_{st.session_state.cal_ver}"
 )
 
 
@@ -364,30 +376,32 @@ state = calendar(
 
 if isinstance(state, dict):
     callback = state.get("callback")
+
     dc = state.get("dateClick")
     ec = state.get("eventClick")
 
-    if callback == "dateClick" or (
-        callback is None and isinstance(dc, dict)
-    ):
-        picked = date_from(
-            (dc or {}).get("date")
-            or (dc or {}).get("dateStr")
-        )
+    if callback == "dateClick" or (callback is None and isinstance(dc, dict)):
+        dc = dc or {}
+        # dateStr(로컬 날짜)을 우선 사용 — date는 UTC라 하루 밀릴 수 있음
+        picked = date_from(dc.get("dateStr") or dc.get("date"))
 
         if picked:
             st.session_state.selected_date = picked
             st.session_state.edit_event_id = None
             st.session_state.show_event_form = True
+            refresh_calendar(picked)
             st.rerun()
 
-    elif callback == "eventClick" or (
-        callback is None and isinstance(ec, dict)
-    ):
+    elif callback == "eventClick" or (callback is None and isinstance(ec, dict)):
         event_data = (ec or {}).get("event") or {}
 
         if event_data.get("id"):
             st.session_state.view_event_id = str(event_data["id"])
+            clicked = next(
+                (e for e in events if e["id"] == str(event_data["id"])),
+                None
+            )
+            refresh_calendar(clicked["date"] if clicked else None)
             st.rerun()
 
 
@@ -471,7 +485,6 @@ def confirm_delete_dialog(event_id):
                     "user_id", uid
                 ).execute()
 
-                st.session_state.pending_delete_id = None
                 st.session_state.view_event_id = None
                 st.success("일정을 삭제했습니다.")
                 st.rerun()
@@ -485,11 +498,11 @@ def confirm_delete_dialog(event_id):
             use_container_width=True,
             key="confirm_delete_no"
         ):
-            st.session_state.pending_delete_id = None
             st.rerun()
 
 
-pending_delete_id = st.session_state.get("pending_delete_id")
+# pop으로 꺼내 한 번만 열리게 함 (X/바깥 클릭으로 닫아도 다시 안 뜸)
+pending_delete_id = st.session_state.pop("pending_delete_id", None)
 
 if pending_delete_id:
     confirm_delete_dialog(pending_delete_id)
@@ -499,7 +512,6 @@ if pending_delete_id:
 # 12. 일정 추가 및 수정 팝업창
 # ==========================================
 
-@st.dialog("일정 추가", width="large")
 def event_editor_dialog():
     edit_id = st.session_state.get("edit_event_id")
 
@@ -562,7 +574,6 @@ def event_editor_dialog():
         try:
             write_event(client, uid, event)
 
-            st.session_state.show_event_form = False
             st.session_state.edit_event_id = None
             st.session_state.view_event_id = None
 
@@ -577,13 +588,17 @@ def event_editor_dialog():
         key="cancel_event_dialog",
         use_container_width=True
     ):
-        st.session_state.show_event_form = False
         st.session_state.edit_event_id = None
         st.rerun()
 
 
-if st.session_state.get("show_event_form", False):
-    event_editor_dialog()
+# pop으로 꺼내 한 번만 열리게 하고, 수정 모드면 제목도 바꿈
+if st.session_state.pop("show_event_form", False):
+    is_edit = bool(st.session_state.get("edit_event_id"))
+    st.dialog(
+        "일정 수정" if is_edit else "일정 추가",
+        width="large"
+    )(event_editor_dialog)()
 
 
 # ==========================================
