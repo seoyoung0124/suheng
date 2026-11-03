@@ -1,5 +1,5 @@
 import uuid
-from datetime import date, datetime, timedelta, timezone
+from datetime import date, datetime, timedelta, timezone, time as dtime
 
 import streamlit as st
 from streamlit_calendar import calendar
@@ -117,6 +117,7 @@ COLORS = {
 }
 
 PERSONAL_COLOR = "#7DD3FC"
+DONE_COLOR = "#D1D5DB"
 
 
 # ==========================================
@@ -227,13 +228,18 @@ def fetch_events(client, uid):
                 if r.get("importance") in COLORS
                 else "없음"
             ),
-            "categories": [x for x in cats if x in CATEGORIES]
+            "categories": [x for x in cats if x in CATEGORIES],
+            # DB의 time 값("09:00:00")을 "09:00" 형태로 사용
+            "start_time": str(r.get("start_time") or "")[:5],
+            "end_time": str(r.get("end_time") or "")[:5],
+            "done": bool(r.get("done"))
         })
 
     return result
 
 
 def write_event(client, uid, event):
+    # done(완료 여부)은 보내지 않는다 → 수정해도 기존 완료 상태가 유지됨
     client.table("events").upsert({
         "id": event["id"],
         "user_id": uid,
@@ -241,8 +247,18 @@ def write_event(client, uid, event):
         "title": event["title"],
         "description": event["description"],
         "importance": event["importance"],
-        "categories": event["categories"]
+        "categories": event["categories"],
+        "start_time": event.get("start_time"),
+        "end_time": event.get("end_time")
     }).execute()
+
+
+def time_from(text, default):
+    try:
+        hour, minute = str(text)[:5].split(":")
+        return dtime(int(hour), int(minute))
+    except Exception:
+        return default
 
 
 def date_from(value):
@@ -320,9 +336,18 @@ for e in events:
         else COLORS[e["importance"]]
     )
 
+    if e["done"]:
+        color = DONE_COLOR
+
+    cal_title = (
+        ("✔ " if e["done"] else "")
+        + (f"{e['start_time']} " if e["start_time"] else "")
+        + (e["title"] or "(제목 없음)")
+    )
+
     cal_events.append({
         "id": e["id"],
-        "title": e["title"] or "(제목 없음)",
+        "title": cal_title,
         "start": e["date"],
         "allDay": True,
         "backgroundColor": color,
@@ -428,7 +453,15 @@ if view_event:
             + (", ".join(view_event["categories"]) or "없음")
         )
 
-        c1, c2, c3 = st.columns(3)
+        if view_event["start_time"]:
+            time_text = view_event["start_time"]
+            if view_event["end_time"]:
+                time_text += f" ~ {view_event['end_time']}"
+            st.write(f"시간: {time_text}")
+
+        st.write("상태: " + ("✅ 완료" if view_event["done"] else "진행 전"))
+
+        c1, c2, c3, c4 = st.columns(4)
 
         if c1.button("수정", key="view_edit"):
             st.session_state.edit_event_id = view_id
@@ -437,11 +470,22 @@ if view_event:
             st.session_state.view_event_id = None
             st.rerun()
 
-        if c2.button("🗑️ 삭제", key="view_delete"):
+        done_label = "↩️ 완료 취소" if view_event["done"] else "✅ 완료"
+
+        if c2.button(done_label, key="view_done"):
+            try:
+                client.table("events").update(
+                    {"done": not view_event["done"]}
+                ).eq("id", view_id).eq("user_id", uid).execute()
+                st.rerun()
+            except Exception as exc:
+                st.error(f"상태 변경에 실패했습니다: {exc}")
+
+        if c3.button("🗑️ 삭제", key="view_delete"):
             st.session_state.pending_delete_id = view_id
             st.rerun()
 
-        if c3.button("닫기", key="view_close"):
+        if c4.button("닫기", key="view_close"):
             st.session_state.view_event_id = None
             st.rerun()
 
@@ -557,20 +601,48 @@ def event_editor_dialog():
             default=existing["categories"] if existing else []
         )
 
+        use_time = st.checkbox(
+            "시간 지정",
+            value=bool(existing and existing["start_time"])
+        )
+
+        t1, t2 = st.columns(2)
+
+        start_t = t1.time_input(
+            "시작 시간",
+            value=time_from(
+                existing["start_time"] if existing else "", dtime(9, 0)
+            ),
+            step=300
+        )
+
+        end_t = t2.time_input(
+            "종료 시간",
+            value=time_from(
+                existing["end_time"] if existing else "", dtime(10, 0)
+            ),
+            step=300
+        )
+
         save = st.form_submit_button(
             "저장",
             type="primary",
             use_container_width=True
         )
 
-    if save:
+    if save and use_time and end_t < start_t:
+        st.warning("종료 시간이 시작 시간보다 빠릅니다.")
+
+    elif save:
         event = {
             "id": edit_id or str(uuid.uuid4()),
             "date": picked_date,
             "title": title.strip(),
             "description": description.strip(),
             "importance": importance,
-            "categories": categories
+            "categories": categories,
+            "start_time": start_t.strftime("%H:%M:%S") if use_time else None,
+            "end_time": end_t.strftime("%H:%M:%S") if use_time else None
         }
 
         try:
