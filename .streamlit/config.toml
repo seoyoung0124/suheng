@@ -1,6 +1,3 @@
 [theme]
 primaryColor = "#8D91F2"
 font = "sans serif"
-
-[client]
-showSidebarNavigation = false
