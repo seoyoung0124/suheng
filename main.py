@@ -352,8 +352,6 @@ state = calendar(
         "contentHeight": 650,
         "expandRows": True,
         "dayMaxEvents": 4,
-        "dateClick": True,
-        "eventClick": True,
         "selectable": True,
         "editable": False,
         "headerToolbar": {
