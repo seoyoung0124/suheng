@@ -181,6 +181,13 @@ html, body, .stApp, button, input, textarea, select {
 [data-testid="stSidebarNav"] { display: none; }
 [data-testid="stSidebar"] { background: __sidebar__; border-right: none; }
 [data-testid="stSidebar"] > div:first-child { background: transparent; }
+/* 사이드바를 접고 펴는 버튼이 어두운 배경에서도 보이게 */
+[data-testid="stSidebarCollapsedControl"] button, [data-testid="stExpandSidebarButton"],
+[data-testid="stSidebarCollapseButton"] button, [data-testid="collapsedControl"] button {
+  color: __text__;
+}
+[data-testid="stSidebarCollapsedControl"] svg, [data-testid="stExpandSidebarButton"] svg,
+[data-testid="stSidebarCollapseButton"] svg, [data-testid="collapsedControl"] svg { color: __text__; fill: __text__; }
 .block-container { padding-top: 2.4rem; padding-bottom: 3rem; max-width: 1180px; }
 
 /* 스타일을 넣기 위한 빈 요소가 공간을 차지하지 않게 */
@@ -305,12 +312,19 @@ button[data-baseweb="tab"][aria-selected="true"] { color: __accent_text__; }
 .card-count { font-size: 1.05rem; font-weight: 600; color: __sub__; white-space: nowrap; }
 .pbar { height: 12px; border-radius: 99px; background: __rail__; overflow: hidden; margin: 14px 0 6px; }
 .pbar > div { height: 100%; border-radius: 99px; background: __grad__; }
-.stApp [class*="st-key-item_"] { border-bottom: 1px solid __border__; gap: 0; }
+.stApp [class*="st-key-item_"] {
+  border-bottom: 1px solid __border__; gap: 0; min-height: 4.9rem; justify-content: center;
+}
 .stApp [class*="st-key-item_"] button[data-testid^="stBaseButton"] {
   justify-content: flex-start; background: transparent; border: none; box-shadow: none; width: 100%;
   text-align: left; padding: .5rem .2rem; font-size: 1.05rem; font-weight: 500; color: __text__;
   gap: .9rem; border-radius: 12px;
 }
+/* 일정 글자를 칸 왼쪽에 붙인다 (Streamlit 버튼은 기본이 가운데 정렬) */
+.stApp [class*="st-key-item_"] button[data-testid^="stBaseButton"] > div { justify-content: flex-start; text-align: left; width: 100%; }
+.stApp [class*="st-key-item_"] button[data-testid^="stBaseButton"] [data-testid="stMarkdownContainer"] { flex: 1; text-align: left; }
+.stApp [class*="st-key-item_"] button[data-testid^="stBaseButton"] p { text-align: left; }
+.item-empty { color: __sub__; font-size: .9rem; padding-left: .2rem; }
 .stApp [class*="st-key-item_"] button[data-testid^="stBaseButton"]:hover { background: __hdr__; color: __text__; }
 .stApp [class*="st-key-item_"] [data-testid="stIconMaterial"] { font-size: 1.9rem; color: __sub__; }
 .stApp [class*="st-key-item_done_"] button[data-testid^="stBaseButton"] { color: __sub__; }
