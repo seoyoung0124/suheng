@@ -258,70 +258,6 @@ except Exception:
 
 carry_undo = st.session_state.get("carry_undo")
 
-if carry_undo or overdue:
-    _, carry_mid, _ = st.columns([2.8, 4.8, 2.8])
-
-    with carry_mid:
-        if carry_undo:
-            with st.container(key="carry_undo"):
-                u_text, u_btn = st.columns([4, 1.8], vertical_alignment="center")
-
-                with u_text:
-                    st.markdown(
-                        f'<div class="carry-note">{esc(st.session_state.get("carry_undo_text", ""))}</div>',
-                        unsafe_allow_html=True
-                    )
-
-                with u_btn:
-                    st.button(
-                        "되돌리기", key="carry_undo_btn", icon=":material/undo:",
-                        on_click=undo_carry, use_container_width=True
-                    )
-
-        if overdue:
-            with st.container(key="carry_panel"):
-                c_head, c_all = st.columns([3, 2.2], vertical_alignment="center")
-
-                with c_head:
-                    st.markdown(
-                        f'<div class="panel-title"><i></i>못 끝낸 일정 {len(overdue)}개</div>'
-                        f'<div class="carry-sub">최근 {CARRY_DAYS}일 · {esc(target_text)}로 옮길 수 있어요</div>',
-                        unsafe_allow_html=True
-                    )
-
-                with c_all:
-                    st.button(
-                        "모두 옮기기", key="carry_all",
-                        icon=":material/arrow_forward:", type="primary",
-                        on_click=carry_events,
-                        args=(overdue, target_day.isoformat(), target_text),
-                        use_container_width=True
-                    )
-
-                for item in overdue[:CARRY_SHOW]:
-                    c_row, c_one = st.columns([4, 1.8], vertical_alignment="center")
-
-                    with c_row:
-                        st.markdown(
-                            '<div class="carry-row">'
-                            f'<span class="up-dot" style="background:{theme.IMPORTANCE_COLOR[item["importance"]]}"></span>'
-                            f'<span class="up-title">{esc(item["title"])}</span>'
-                            f'<span class="up-meta">{overdue_label(item["date"])}</span>'
-                            '</div>',
-                            unsafe_allow_html=True
-                        )
-
-                    with c_one:
-                        st.button(
-                            "옮기기", key=f"carry_one_{item['id']}",
-                            on_click=carry_events,
-                            args=([item], target_day.isoformat(), target_text),
-                            use_container_width=True
-                        )
-
-                if len(overdue) > CARRY_SHOW:
-                    st.caption(f"외 {len(overdue) - CARRY_SHOW}개는 '모두 옮기기'로 함께 옮겨져요.")
-
 try:
     day_events = fetch_day_events(client, uid, day)
 except Exception as exc:
@@ -428,6 +364,67 @@ with c_mid:
             '</div>',
             unsafe_allow_html=True
         )
+
+    # ----- 못 끝낸 일정 이월 (플래너 카드 바로 아래) -----
+    if carry_undo:
+        with st.container(key="carry_undo"):
+            u_text, u_btn = st.columns([4, 1.8], vertical_alignment="center")
+
+            with u_text:
+                st.markdown(
+                    f'<div class="carry-note">{esc(st.session_state.get("carry_undo_text", ""))}</div>',
+                    unsafe_allow_html=True
+                )
+
+            with u_btn:
+                st.button(
+                    "되돌리기", key="carry_undo_btn", icon=":material/undo:",
+                    on_click=undo_carry, use_container_width=True
+                )
+
+    if overdue:
+        with st.container(key="carry_panel"):
+            c_head, c_all = st.columns([3, 2.2], vertical_alignment="center")
+
+            with c_head:
+                st.markdown(
+                    f'<div class="panel-title"><i></i>못 끝낸 일정 {len(overdue)}개</div>'
+                    f'<div class="carry-sub">최근 {CARRY_DAYS}일 · {esc(target_text)}로 옮길 수 있어요</div>',
+                    unsafe_allow_html=True
+                )
+
+            with c_all:
+                st.button(
+                    "모두 옮기기", key="carry_all",
+                    icon=":material/arrow_forward:", type="primary",
+                    on_click=carry_events,
+                    args=(overdue, target_day.isoformat(), target_text),
+                    use_container_width=True
+                )
+
+            for item in overdue[:CARRY_SHOW]:
+                c_row, c_one = st.columns([4, 1.8], vertical_alignment="center")
+
+                with c_row:
+                    st.markdown(
+                        '<div class="carry-row">'
+                        f'<span class="up-dot" style="background:{theme.IMPORTANCE_COLOR[item["importance"]]}"></span>'
+                        f'<span class="up-title">{esc(item["title"])}</span>'
+                        f'<span class="up-meta">{overdue_label(item["date"])}</span>'
+                        '</div>',
+                        unsafe_allow_html=True
+                    )
+
+                with c_one:
+                    st.button(
+                        "옮기기", key=f"carry_one_{item['id']}",
+                        on_click=carry_events,
+                        args=([item], target_day.isoformat(), target_text),
+                        use_container_width=True
+                    )
+
+            if len(overdue) > CARRY_SHOW:
+                st.caption(f"외 {len(overdue) - CARRY_SHOW}개는 '모두 옮기기'로 함께 옮겨져요.")
 
     if day != today:
         st.write("")
