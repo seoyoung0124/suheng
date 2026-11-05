@@ -5,8 +5,8 @@ import streamlit as st
 import theme
 
 st.set_page_config(
-    page_title="하루결 | My Planner",
-    page_icon="📒",
+    page_title="Daily Planner | My Planner",
+    page_icon="📓",
     layout="wide",
     initial_sidebar_state="expanded"
 )
