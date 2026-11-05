@@ -271,8 +271,8 @@ important = sum(e["importance"] == "상" for e in day_events)
 remaining = total - done_count
 percent = round(done_count / total * 100) if total else 0
 
-_, c_prev, c_mid, c_next, _ = st.columns(
-    [2, 0.8, 4.8, 0.8, 2], vertical_alignment="center"
+_, c_prev, c_mid, c_next, c_side = st.columns(
+    [1.4, 0.8, 4.8, 0.8, 3], vertical_alignment="center"
 )
 
 with c_prev:
@@ -365,7 +365,17 @@ with c_mid:
             unsafe_allow_html=True
         )
 
-    # ----- 못 끝낸 일정 이월 (플래너 카드 바로 아래) -----
+
+    if day != today:
+        st.write("")
+        st.button(
+            "오늘로 돌아가기", key="go_today", on_click=go_today,
+            icon=":material/today:", use_container_width=True
+        )
+
+
+with c_side:
+    # ----- 못 끝낸 일정 이월 (플래너 카드 오른쪽 옆) -----
     if carry_undo:
         with st.container(key="carry_undo"):
             u_text, u_btn = st.columns([4, 1.8], vertical_alignment="center")
@@ -425,13 +435,6 @@ with c_mid:
 
             if len(overdue) > CARRY_SHOW:
                 st.caption(f"외 {len(overdue) - CARRY_SHOW}개는 '모두 옮기기'로 함께 옮겨져요.")
-
-    if day != today:
-        st.write("")
-        st.button(
-            "오늘로 돌아가기", key="go_today", on_click=go_today,
-            icon=":material/today:", use_container_width=True
-        )
 
 
 # ==========================================
