@@ -8,7 +8,7 @@ from supabase import create_client
 import theme
 
 st.set_page_config(
-    page_title="하루결 | 캘린더",
+    page_title="Daily Planner | Calendar",
     page_icon="🗓️",
     layout="wide"
 )
