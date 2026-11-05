@@ -244,6 +244,10 @@ button[data-baseweb="tab"][aria-selected="true"] { color: __accent_text__; }
   justify-content: flex-start; border: none; background: transparent; color: __sub__;
   border-radius: 18px; padding: .8rem 1rem; font-weight: 500; gap: .7rem; width: 100%;
 }
+.stApp [class*="st-key-nav_"] button[data-testid^="stBaseButton"] > div,
+.stApp [class*="st-key-nav_"] button[data-testid^="stBaseButton"] [data-testid="stMarkdownContainer"] {
+  justify-content: flex-start; text-align: left; width: auto; margin: 0; }
+.stApp [class*="st-key-nav_"] { width: 100%; }
 .stApp [class*="st-key-nav_"] button[data-testid^="stBaseButton"]:hover { background: __soft__; color: __accent_text__; }
 .stApp [class*="st-key-nav_active_"] button[data-testid^="stBaseButton"] {
   background: __soft__; color: __accent_text__; font-weight: 600;
@@ -342,7 +346,13 @@ button[data-baseweb="tab"][aria-selected="true"] { color: __accent_text__; }
 /* ---------- 못 끝낸 일정 이월 ---------- */
 .carry-sub { color: __sub__; font-size: .85rem; margin: 2px 0 0 15px; }
 .carry-note { color: __text__; font-size: .95rem; font-weight: 500; }
-.carry-row { display: flex; align-items: center; gap: 10px; padding: 2px 0; min-width: 0; }
+.carry-title { display: flex; align-items: flex-start; gap: 10px; color: __text__; font-weight: 600;
+  line-height: 1.35; word-break: break-all; padding-top: 6px; }
+.carry-title .up-dot { margin-top: 6px; flex: none; }
+.carry-meta { color: __sub__; font-size: .82rem; padding-left: 20px; white-space: nowrap; }
+.stApp [class*="st-key-carry_item_"] { border-top: 1px solid __border__; padding-bottom: .5rem; gap: .2rem; }
+.stApp .st-key-carry_panel button[data-testid^="stBaseButton"], .stApp .st-key-carry_undo button[data-testid^="stBaseButton"] {
+  padding: .3rem .6rem; min-height: 0; white-space: nowrap; }
 .stApp .st-key-carry_side { margin-top: 2.4rem; }
 .stApp .st-key-carry_undo { padding-top: .7rem; padding-bottom: .7rem; }
 
