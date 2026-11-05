@@ -369,6 +369,81 @@ mark { background: __soft__; color: __accent_text__; border-radius: 4px; padding
 .tp-card i { display: block; height: 8px; border-radius: 6px; margin-bottom: 8px; }
 .tp-name { font-weight: 700; margin: 10px 0 0; color: __text__; }
 .tp-desc { font-size: .82rem; color: __sub__; margin-bottom: 8px; }
+
+/* ---------- 통계 화면 ---------- */
+.stat-head { display: flex; align-items: flex-end; gap: 16px; }
+.stat-head .bars { display: flex; align-items: flex-end; gap: 5px; }
+.stat-head .bars i { width: 12px; border-radius: 4px; background: __ring_a__; display: block; }
+.stat-head .bars i:nth-child(2) { opacity: .75; }
+.stat-head .bars i:nth-child(3) { background: __accent__; }
+.stat-h1 { font-size: 1.9rem; font-weight: 700; color: __text__; line-height: 1.2; }
+.stat-sub { color: __sub__; font-size: .95rem; margin-top: 2px; }
+.stApp .st-key-stats_toggle { background: __card__; border: 1px solid __border__; border-radius: 999px; padding: 4px; }
+.stApp .st-key-stats_toggle button[data-testid^="stBaseButton"] { border: none; border-radius: 999px; padding: .4rem 1rem; }
+.stApp .st-key-stats_toggle button[data-testid="stBaseButton-secondary"] { background: transparent; color: __sub__; }
+.stApp .st-key-stats_toggle button[data-testid="stBaseButton-primary"] { background: __grad__; color: __on_accent__; }
+.stat-card, .stApp .st-key-stats_main_panel, .stApp .st-key-stats_major {
+  background: __card__; border: 1px solid __border__; border-radius: 22px; padding: 1.1rem 1.4rem;
+  box-shadow: 0 4px 24px rgba(0,0,0,.03);
+}
+.stat-card { margin-bottom: 1rem; }
+.stat-card.kpi { display: flex; align-items: center; gap: 16px; min-height: 112px; }
+.kpi-ic { width: 54px; height: 54px; border-radius: 16px; display: flex; align-items: center; justify-content: center; font-size: 1.5rem; flex: none; }
+.kpi-label { color: __sub__; font-size: .9rem; font-weight: 600; }
+.kpi-label.big { color: __text__; font-size: 1.05rem; }
+.kpi-val { color: __text__; font-size: 1.9rem; font-weight: 700; line-height: 1.25; }
+.kpi-note { color: __sub__; font-size: .9rem; font-weight: 500; }
+.kpi-note.big { font-size: 1rem; margin-top: 4px; }
+.kpi-diff { display: inline-block; margin-left: 10px; font-size: .85rem; font-weight: 600; vertical-align: middle; }
+.diff-up { color: #E5677D; } .diff-good { color: #2FA87A; } .diff-down { color: #4A8FE0; } .diff-flat { color: __sub__; }
+.donut { width: 96px; height: 96px; border-radius: 50%; position: relative; flex: none; display: flex; align-items: center; justify-content: center; }
+.donut.sm { width: 64px; height: 64px; }
+.donut::after { content: ""; position: absolute; inset: 14px; border-radius: 50%; background: __card__; }
+.donut.sm::after { inset: 10px; }
+.donut span { position: relative; z-index: 1; font-weight: 700; color: __text__; font-size: 1.1rem; }
+.stat-title { display: flex; align-items: center; gap: 8px; font-size: 1.05rem; font-weight: 700; color: __text__; }
+.stat-ic { font-size: 1.1rem; }
+.stat-range { text-align: center; font-weight: 600; color: __text__; white-space: nowrap; }
+.stat-empty { color: __sub__; text-align: center; padding: 16px 0; font-size: .9rem; }
+.stat-tip { margin-top: 12px; padding: 10px 14px; border-radius: 14px; background: __soft__; color: __accent_text__; font-size: .9rem; font-weight: 600; }
+.stat-banner { display: flex; align-items: center; gap: 12px; padding: 16px 22px; border-radius: 20px; background: __soft__;
+  color: __accent_text__; font-weight: 600; position: relative; overflow: hidden; }
+.stat-banner .deco { margin-left: auto; font-size: 1.8rem; opacity: .6; }
+.stApp .st-key-stats_prev button[data-testid^="stBaseButton"], .stApp .st-key-stats_next button[data-testid^="stBaseButton"] {
+  width: 2.2rem; height: 2.2rem; min-height: 0; padding: 0; border-radius: 50%; background: __soft__; color: __accent_text__; }
+.pie-wrap { display: flex; align-items: center; gap: 22px; margin-top: 14px; }
+.pie { width: 130px; height: 130px; border-radius: 50%; flex: none; }
+.cat-list { flex: 1; min-width: 0; }
+.cat-row { display: flex; align-items: center; gap: 8px; padding: 5px 0; font-size: .92rem; }
+.cat-dot { width: 10px; height: 10px; border-radius: 50%; flex: none; display: inline-block; }
+.cat-name { color: __text__; flex: 1; }
+.cat-val { color: __sub__; white-space: nowrap; }
+.major-row { display: flex; align-items: center; gap: 10px; padding: 9px 0; border-top: 1px solid __border__; font-size: .92rem; }
+.major-date { color: __sub__; white-space: nowrap; }
+.major-title { color: __text__; font-weight: 500; flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.stApp .st-key-stats_major { margin-top: 1rem; }
+.mini-cal { display: grid; grid-template-columns: repeat(7, 1fr); gap: 6px; margin-top: 14px; }
+.mc-h { text-align: center; color: __sub__; font-size: .85rem; font-weight: 600; padding-bottom: 4px; }
+.mc-d { min-height: 54px; border-radius: 12px; padding: 5px 6px; color: __text__; font-size: .9rem; display: flex; flex-direction: column; justify-content: space-between; }
+.mc-d.empty { visibility: hidden; }
+.mc-d.today { outline: 2px solid __accent__; }
+.mc-dots { display: flex; gap: 3px; }
+.mc-dots i { width: 6px; height: 6px; border-radius: 50%; display: block; }
+.legend { display: flex; flex-wrap: wrap; gap: 14px; margin-top: 14px; color: __sub__; font-size: .85rem; }
+.legend i { display: inline-block; width: 10px; height: 10px; border-radius: 3px; margin-right: 6px; }
+.bc { margin-top: 16px; padding-left: 28px; }
+.bc-plot { position: relative; height: 230px; }
+.bc-line { position: absolute; left: 0; right: 0; height: 0; border-top: 1px dashed __border__; }
+.bc-line span { position: absolute; left: -26px; top: -9px; color: __sub__; font-size: .78rem; }
+.bc-cols { position: absolute; inset: 0; display: grid; grid-template-columns: repeat(7, 1fr); gap: 14px; padding: 0 10px; }
+.bc-col { position: relative; display: flex; flex-direction: column; justify-content: flex-end; align-items: center; }
+.bc-val { color: __sub__; font-size: .8rem; font-weight: 600; margin-bottom: 3px; }
+.bar { width: 62%; max-width: 46px; border-radius: 10px 10px 4px 4px; background: __ring_a__; overflow: hidden; position: relative; display: flex; align-items: flex-end; }
+.bar-done { width: 100%; background: __accent__; border-radius: 0 0 4px 4px; }
+.bc-labels { display: grid; grid-template-columns: repeat(7, 1fr); gap: 14px; padding: 0 10px; margin-top: 10px; }
+.bc-lab { text-align: center; color: __text__; font-weight: 600; font-size: .9rem; line-height: 1.3; }
+.bc-lab small { color: __sub__; font-weight: 500; font-size: .75rem; }
+.bc-lab.bc-today { color: __accent_text__; }
 """
 
 
@@ -443,6 +518,7 @@ def calendar_css(name=None):
 NAV = [
     ("calendar", "Calendar", "main.py", ":material/calendar_month:"),
     ("planner", "My Planner", "pages/list.py", ":material/task_alt:"),
+    ("stats", "Stats", "pages/stats.py", ":material/bar_chart:"),
     ("search", "Search", "pages/search.py", ":material/search:"),
     ("settings", "Settings", "pages/settings.py", ":material/settings:"),
 ]
