@@ -3,8 +3,7 @@ import streamlit as st
 import theme
 
 st.set_page_config(
-    page_title="하루결 | Settings",
-    page_icon="⚙️",
+    page_title="Daily Planner",
     layout="wide"
 )
 
