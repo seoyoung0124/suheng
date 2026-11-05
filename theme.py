@@ -343,8 +343,8 @@ button[data-baseweb="tab"][aria-selected="true"] { color: __accent_text__; }
 .carry-sub { color: __sub__; font-size: .85rem; margin: 2px 0 0 15px; }
 .carry-note { color: __text__; font-size: .95rem; font-weight: 500; }
 .carry-row { display: flex; align-items: center; gap: 10px; padding: 2px 0; min-width: 0; }
-.stApp .st-key-carry_panel { margin-top: 0; }
-.stApp .st-key-carry_undo { margin-top: 0; padding-top: .7rem; padding-bottom: .7rem; }
+.stApp .st-key-carry_side { margin-top: 2.4rem; }
+.stApp .st-key-carry_undo { padding-top: .7rem; padding-bottom: .7rem; }
 
 /* ---------- 검색 화면 ---------- */
 .stApp .st-key-search_q [data-baseweb="input"], .stApp .st-key-search_q [data-baseweb="base-input"] { border-radius: 999px; }
