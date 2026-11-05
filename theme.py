@@ -275,7 +275,8 @@ button[data-baseweb="tab"][aria-selected="true"] { color: __accent_text__; }
 .stApp .st-key-cal_add button[data-testid^="stBaseButton"] {
   background: __soft__; color: __accent_text__; border: 1px solid __border__; padding: .65rem 1.4rem;
 }
-.stApp .st-key-upcoming, .stApp .st-key-detail_panel, .stApp .st-key-week_panel, .stApp .st-key-account_card {
+.stApp .st-key-upcoming, .stApp .st-key-detail_panel, .stApp .st-key-week_panel, .stApp .st-key-account_card,
+.stApp .st-key-carry_panel, .stApp .st-key-carry_undo {
   background: __card__; border: 1px solid __border__; border-radius: 22px; padding: 1.1rem 1.5rem 1.2rem;
   box-shadow: 0 4px 24px rgba(0,0,0,.03);
 }
@@ -337,6 +338,28 @@ button[data-baseweb="tab"][aria-selected="true"] { color: __accent_text__; }
 .tile .n { font-size: 2rem; font-weight: 700; line-height: 1.2; margin-top: 2px; }
 .stApp .st-key-week_panel button[data-testid^="stBaseButton"] { width: 100%; padding: .45rem .2rem; font-size: .9rem; }
 .week-note { text-align: center; font-size: .78rem; color: __sub__; margin-top: 4px; }
+
+/* ---------- 못 끝낸 일정 이월 ---------- */
+.carry-sub { color: __sub__; font-size: .85rem; margin: 2px 0 0 15px; }
+.carry-note { color: __text__; font-size: .95rem; font-weight: 500; }
+.carry-row { display: flex; align-items: center; gap: 10px; padding: 2px 0; min-width: 0; }
+.stApp .st-key-carry_panel { margin-bottom: .4rem; }
+.stApp .st-key-carry_undo { margin-bottom: .4rem; padding-top: .7rem; padding-bottom: .7rem; }
+
+/* ---------- 검색 화면 ---------- */
+.stApp .st-key-search_q [data-baseweb="input"], .stApp .st-key-search_q [data-baseweb="base-input"] { border-radius: 999px; }
+.stApp .st-key-search_q input { font-size: 1.05rem; padding: .85rem 1.2rem; }
+.res-count { color: __sub__; font-size: .9rem; margin: .6rem 0 0; }
+.stApp [class*="st-key-res_"] {
+  background: __card__; border: 1px solid __border__; border-radius: 18px; padding: .8rem 1.2rem;
+  box-shadow: 0 4px 20px rgba(0,0,0,.03);
+}
+.res-top { display: flex; align-items: center; gap: 10px; flex-wrap: wrap; }
+.res-title { font-weight: 600; color: __text__; }
+.res-date { color: __sub__; font-size: .82rem; margin-left: auto; white-space: nowrap; }
+.res-desc { color: __sub__; font-size: .85rem; margin: 4px 0 0 20px; }
+.res-chips { margin: 6px 0 0 20px; }
+mark { background: __soft__; color: __accent_text__; border-radius: 4px; padding: 0 2px; font-weight: 700; }
 
 /* ---------- 설정 화면 ---------- */
 .tp { height: 118px; border-radius: 16px; display: flex; overflow: hidden; }
@@ -420,6 +443,7 @@ def calendar_css(name=None):
 NAV = [
     ("calendar", "Calendar", "main.py", ":material/calendar_month:"),
     ("planner", "My Planner", "pages/list.py", ":material/task_alt:"),
+    ("search", "Search", "pages/search.py", ":material/search:"),
     ("settings", "Settings", "pages/settings.py", ":material/settings:"),
 ]
 
