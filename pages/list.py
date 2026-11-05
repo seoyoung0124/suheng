@@ -1,4 +1,4 @@
-from datetime import timedelta
+from datetime import date, timedelta
 
 import streamlit as st
 
@@ -91,6 +91,95 @@ def toggle_done(event_id, new_value):
 
 
 # ==========================================
+# 1-2. 못 끝낸 일정 이월
+# ==========================================
+
+CARRY_DAYS = 30  # 최근 며칠 안의 못 끝낸 일정만 이월 대상으로 본다
+CARRY_SHOW = 5   # 패널에 하나씩 보여 줄 최대 개수 (나머지는 '모두 옮기기'로)
+
+
+def fetch_overdue(client, uid, today):
+    """오늘 이전(최근 CARRY_DAYS일)에 있는 완료하지 않은 일정."""
+    rows = (
+        client.table("events")
+        .select("*")
+        .eq("user_id", uid)
+        .eq("done", False)
+        .gte("event_date", (today - timedelta(days=CARRY_DAYS)).isoformat())
+        .lt("event_date", today.isoformat())
+        .order("event_date")
+        .execute()
+        .data or []
+    )
+
+    result = []
+
+    for r in rows:
+        importance = r.get("importance")
+
+        result.append({
+            "id": str(r["id"]),
+            "date": str(r["event_date"])[:10],
+            "title": r.get("title") or "(제목 없음)",
+            "importance": importance if importance in ORDER else "없음",
+        })
+
+    # 어제처럼 가까운 날짜의 일정이 먼저 보이도록 최근 날짜순, 같은 날은 중요한 순
+    result.sort(key=lambda e: (
+        -date.fromisoformat(e["date"]).toordinal(),
+        ORDER[e["importance"]],
+        e["title"]
+    ))
+    return result
+
+
+def carry_events(items, target_iso, target_text):
+    """items의 일정 날짜를 target_iso로 옮긴다. 되돌릴 수 있게 원래 날짜를 기억해 둔다."""
+    ids = [i["id"] for i in items]
+
+    if not ids:
+        return
+
+    try:
+        st.session_state.supabase_client.table("events").update(
+            {"event_date": target_iso}
+        ).in_("id", ids).eq(
+            "user_id", st.session_state.user_id
+        ).execute()
+    except Exception as exc:
+        st.toast(f"일정을 옮기지 못했습니다: {exc}")
+        return
+
+    st.session_state.carry_undo = [(i["id"], i["date"]) for i in items]
+    st.session_state.carry_undo_text = f"{len(ids)}개 일정을 {target_text}로 옮겼어요."
+
+
+def undo_carry():
+    undo = st.session_state.get("carry_undo") or []
+
+    try:
+        for event_id, old_date in undo:
+            st.session_state.supabase_client.table("events").update(
+                {"event_date": old_date}
+            ).eq("id", event_id).eq(
+                "user_id", st.session_state.user_id
+            ).execute()
+    except Exception as exc:
+        st.toast(f"되돌리지 못했습니다: {exc}")
+        return
+
+    st.session_state.pop("carry_undo", None)
+    st.session_state.pop("carry_undo_text", None)
+    st.toast("원래 날짜로 되돌렸어요.")
+
+
+def overdue_label(date_str):
+    d = date.fromisoformat(date_str)
+    diff = (today - d).days
+    return f"{d.month}월 {d.day}일 ({theme.WEEKDAYS_KR[d.weekday()]}) · {diff}일 지남"
+
+
+# ==========================================
 # 2. 날짜 이동 (화살표 / 날짜 선택 / 주간 보기)
 # ==========================================
 
@@ -156,6 +245,82 @@ with h_week:
 # ==========================================
 # 4. 플래너 카드 (가운데) + 전날 / 다음날 화살표 (양 옆)
 # ==========================================
+
+# ----- 못 끝낸 일정 이월 안내 (카드 폭에 맞춰 가운데에 표시) -----
+# 보고 있는 날이 오늘 이후면 그 날짜로, 지난 날이면 오늘로 옮긴다
+target_day = max(day, today)
+target_text = "오늘" if target_day == today else f"{target_day.month}월 {target_day.day}일"
+
+try:
+    overdue = fetch_overdue(client, uid, today)
+except Exception:
+    overdue = []
+
+carry_undo = st.session_state.get("carry_undo")
+
+if carry_undo or overdue:
+    _, carry_mid, _ = st.columns([2.8, 4.8, 2.8])
+
+    with carry_mid:
+        if carry_undo:
+            with st.container(key="carry_undo"):
+                u_text, u_btn = st.columns([4, 1.8], vertical_alignment="center")
+
+                with u_text:
+                    st.markdown(
+                        f'<div class="carry-note">{esc(st.session_state.get("carry_undo_text", ""))}</div>',
+                        unsafe_allow_html=True
+                    )
+
+                with u_btn:
+                    st.button(
+                        "되돌리기", key="carry_undo_btn", icon=":material/undo:",
+                        on_click=undo_carry, use_container_width=True
+                    )
+
+        if overdue:
+            with st.container(key="carry_panel"):
+                c_head, c_all = st.columns([3, 2.2], vertical_alignment="center")
+
+                with c_head:
+                    st.markdown(
+                        f'<div class="panel-title"><i></i>못 끝낸 일정 {len(overdue)}개</div>'
+                        f'<div class="carry-sub">최근 {CARRY_DAYS}일 · {esc(target_text)}로 옮길 수 있어요</div>',
+                        unsafe_allow_html=True
+                    )
+
+                with c_all:
+                    st.button(
+                        "모두 옮기기", key="carry_all",
+                        icon=":material/arrow_forward:", type="primary",
+                        on_click=carry_events,
+                        args=(overdue, target_day.isoformat(), target_text),
+                        use_container_width=True
+                    )
+
+                for item in overdue[:CARRY_SHOW]:
+                    c_row, c_one = st.columns([4, 1.8], vertical_alignment="center")
+
+                    with c_row:
+                        st.markdown(
+                            '<div class="carry-row">'
+                            f'<span class="up-dot" style="background:{theme.IMPORTANCE_COLOR[item["importance"]]}"></span>'
+                            f'<span class="up-title">{esc(item["title"])}</span>'
+                            f'<span class="up-meta">{overdue_label(item["date"])}</span>'
+                            '</div>',
+                            unsafe_allow_html=True
+                        )
+
+                    with c_one:
+                        st.button(
+                            "옮기기", key=f"carry_one_{item['id']}",
+                            on_click=carry_events,
+                            args=([item], target_day.isoformat(), target_text),
+                            use_container_width=True
+                        )
+
+                if len(overdue) > CARRY_SHOW:
+                    st.caption(f"외 {len(overdue) - CARRY_SHOW}개는 '모두 옮기기'로 함께 옮겨져요.")
 
 try:
     day_events = fetch_day_events(client, uid, day)
