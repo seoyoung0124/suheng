@@ -2,9 +2,9 @@ import streamlit as st
 
 from supabase_utils import get_supabase, store_auth_session, current_user_id
 
-st.set_page_config(page_title="하루결 | 로그인", page_icon="🔐", layout="centered")
+st.set_page_config(page_title="Daily Planner | 로그인", page_icon="🔐", layout="centered")
 
-st.title("🔐 하루결 로그인")
+st.title("🔐 Daily Planner 로그인")
 st.write("로그인하거나 회원가입한 뒤 나만의 캘린더를 이용할 수 있어요.")
 
 if current_user_id():
