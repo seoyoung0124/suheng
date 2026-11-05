@@ -1,4 +1,4 @@
-"""하루결 공통 모듈: 테마(화이트 / 블랙 / 파스텔), 사이드바, 로그인 확인."""
+"""Daily Planner 공통 모듈: 테마(화이트 / 블랙 / 파스텔), 사이드바, 로그인 확인."""
 
 import html
 from datetime import datetime, timedelta, timezone
