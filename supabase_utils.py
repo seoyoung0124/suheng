@@ -1,3 +1,4 @@
+# Supabase 연결과 사용자 데이터 처리에 필요한 공통 기능을 제공한다.
 import streamlit as st
 from supabase import create_client
 
