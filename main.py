@@ -1,3 +1,4 @@
+# 메인 캘린더 화면: 로그인, 일정 등록·수정·삭제와 월간 캘린더 표시를 담당한다.
 import uuid
 from datetime import date, datetime
 
