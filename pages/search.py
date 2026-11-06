@@ -1,3 +1,4 @@
+# 일정을 검색하고 조건에 따라 확인하는 페이지다.
 import re
 from datetime import date
 
