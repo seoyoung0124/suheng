@@ -1,3 +1,4 @@
+# 로그인 및 회원가입 페이지를 담당한다.
 import streamlit as st
 
 from supabase_utils import get_supabase, store_auth_session, current_user_id
