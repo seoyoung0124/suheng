@@ -1,3 +1,4 @@
+# 사용자 설정과 화면 테마 관련 기능을 제공하는 페이지다.
 import streamlit as st
 
 import theme
