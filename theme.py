@@ -1,4 +1,3 @@
-# 공통 디자인과 화면 설정: 색상, 테마, 날짜 및 CSS 도우미를 제공한다.
 """Daily Planner 공통 모듈: 테마(화이트 / 블랙 / 파스텔), 사이드바, 로그인 확인."""
 
 import html
@@ -34,12 +33,15 @@ MONTHS_EN = [
 ]
 
 
+# 한국 시간대를 기준으로 오늘 날짜를 반환한다.
 def today_kst():
     """서버가 UTC여도 한국 시간 기준의 오늘 날짜를 돌려준다."""
     return datetime.now(KST).date()
 
 
+# 사용자 입력 문자열을 HTML에 안전하게 표시하도록 특수문자를 변환한다.
 def esc(text):
+    # 계산하거나 처리한 결과를 호출한 위치로 반환한다.
     return html.escape(str(text or ""))
 
 
@@ -150,18 +152,25 @@ THEMES = {
 }
 
 
+# 세션에 저장된 테마 이름을 확인하고 유효한 기본값을 반환한다.
 def current_name():
     name = st.session_state.get("theme", DEFAULT_THEME)
+    # 계산하거나 처리한 결과를 호출한 위치로 반환한다.
     return name if name in THEMES else DEFAULT_THEME
 
 
+# 지정한 테마 또는 현재 테마의 색상 팔레트를 가져온다.
 def palette(name=None):
+    # 계산하거나 처리한 결과를 호출한 위치로 반환한다.
     return THEMES[name if name in THEMES else current_name()]
 
 
+# CSS 템플릿 안의 자리표시자를 실제 테마 색상 값으로 바꾼다.
 def _fill(template, p):
+    # 목록의 항목을 하나씩 확인하며 필요한 처리를 반복한다.
     for key, value in p.items():
         template = template.replace(f"__{key}__", value)
+    # 계산하거나 처리한 결과를 호출한 위치로 반환한다.
     return template
 
 
@@ -458,7 +467,9 @@ mark { background: __soft__; color: __accent_text__; border-radius: 4px; padding
 """
 
 
+# 선택한 테마 색상을 공통 CSS에 적용해 화면 스타일을 만든다.
 def build_css(name=None):
+    # 계산하거나 처리한 결과를 호출한 위치로 반환한다.
     return _fill(BASE_CSS, palette(name))
 
 
@@ -518,7 +529,9 @@ html, body { background: transparent; font-family: 'Noto Sans KR', -apple-system
 """
 
 
+# 캘린더 컴포넌트에 적용할 CSS를 반환한다.
 def calendar_css(name=None):
+    # 계산하거나 처리한 결과를 호출한 위치로 반환한다.
     return _fill(CALENDAR_CSS, palette(name))
 
 
@@ -535,40 +548,54 @@ NAV = [
 ]
 
 
+# 앱 이름과 브랜드 표시용 HTML을 만든다.
 def brand_html():
+    # 계산하거나 처리한 결과를 호출한 위치로 반환한다.
     return (
         '<div class="brand">Daily<br><b>Planner</b></div>'
         '<div class="brand-line"></div>'
     )
 
 
+# 현재 사용자의 인증 정보를 정리하고 로그아웃한다.
 def sign_out():
     client = st.session_state.get("supabase_client")
 
+    # 조건을 확인해 해당 상황에서만 다음 작업을 실행한다.
     if client:
+        # 오류가 발생할 수 있는 작업을 실행하고 예외 상황에 대비한다.
         try:
             client.auth.sign_out()
+        # 앞선 작업에서 오류가 발생했을 때 예외 처리를 수행한다.
         except Exception:
             pass
 
+    # 목록의 항목을 하나씩 확인하며 필요한 처리를 반복한다.
     for key in (
         "supabase_client", "supabase_access_token",
         "supabase_refresh_token", "user_id",
         "user_email", "supabase_session_restored"
     ):
+        # 페이지가 다시 실행되어도 필요한 값을 유지하도록 세션 상태를 갱신한다.
         st.session_state.pop(key, None)
 
 
+# 페이지 이동 메뉴와 계정 정보를 사이드바에 표시한다.
 def render_sidebar(active=None):
     with st.sidebar:
+        # 화면에 입력 요소 또는 안내 내용을 표시한다.
         st.markdown(brand_html(), unsafe_allow_html=True)
 
+        # 목록의 항목을 하나씩 확인하며 필요한 처리를 반복한다.
         for key, label, path, icon in NAV:
             button_key = f"nav_active_{key}" if key == active else f"nav_{key}"
 
+            # 조건을 확인해 해당 상황에서만 다음 작업을 실행한다.
             if st.button(label, key=button_key, icon=icon, use_container_width=True):
+                # 오류가 발생할 수 있는 작업을 실행하고 예외 상황에 대비한다.
                 try:
                     st.switch_page(path)
+                # 앞선 작업에서 오류가 발생했을 때 예외 처리를 수행한다.
                 except Exception:
                     st.warning(
                         "페이지 파일을 찾을 수 없어요. "
@@ -577,72 +604,94 @@ def render_sidebar(active=None):
 
         email = st.session_state.get("user_email")
 
+        # 조건을 확인해 해당 상황에서만 다음 작업을 실행한다.
         if email:
+            # 화면에 입력 요소 또는 안내 내용을 표시한다.
             st.markdown(
                 f'<div class="side-user">{esc(email)}</div>',
                 unsafe_allow_html=True
             )
 
+            # 조건을 확인해 해당 상황에서만 다음 작업을 실행한다.
             if st.button("로그아웃", key="side_logout"):
                 sign_out()
                 st.switch_page("main.py")
 
 
+# 현재 테마를 적용하고 필요한 경우 사이드바를 표시한다.
 def apply_theme(sidebar=True, active=None):
     css = build_css()
 
+    # 조건을 확인해 해당 상황에서만 다음 작업을 실행한다.
     if not sidebar:
         css += (
             "[data-testid='stSidebar'], [data-testid='stSidebarCollapsedControl'],"
             "[data-testid='collapsedControl'] { display: none; }"
         )
 
+    # 화면에 입력 요소 또는 안내 내용을 표시한다.
     st.markdown(f"<style>{css}</style>", unsafe_allow_html=True)
 
+    # 조건을 확인해 해당 상황에서만 다음 작업을 실행한다.
     if sidebar:
         render_sidebar(active)
 
 
+# 페이지 공통 초기 설정과 로그인 확인을 수행한다.
 def page_setup(active):
     """pages/ 안의 화면에서 쓰는 공통 시작 코드. 로그인이 안 되어 있으면 안내 후 멈춘다."""
     client = st.session_state.get("supabase_client")
     uid = st.session_state.get("user_id")
 
+    # 조건을 확인해 해당 상황에서만 다음 작업을 실행한다.
     if not client or not uid:
         apply_theme(sidebar=False)
+        # 화면에 입력 요소 또는 안내 내용을 표시한다.
         st.markdown(brand_html(), unsafe_allow_html=True)
         st.info("먼저 캘린더 화면에서 로그인해 주세요.")
 
+        # 오류가 발생할 수 있는 작업을 실행하고 예외 상황에 대비한다.
         try:
+            # 화면에 입력 요소 또는 안내 내용을 표시한다.
             st.page_link("main.py", label="로그인하러 가기", icon=":material/login:")
+        # 앞선 작업에서 오류가 발생했을 때 예외 처리를 수행한다.
         except Exception:
             pass
 
+        # 현재 실행을 중단해 이후 화면 처리가 진행되지 않도록 한다.
         st.stop()
 
     apply_theme(sidebar=True, active=active)
+    # 계산하거나 처리한 결과를 호출한 위치로 반환한다.
     return client, uid
 
 
+# 로그인한 사용자 정보에서 저장된 테마 설정을 불러온다.
 def load_from_user(user):
     """로그인할 때 계정에 저장해 둔 테마를 불러온다."""
     meta = getattr(user, "user_metadata", None) or {}
     saved = meta.get("theme") if isinstance(meta, dict) else None
 
+    # 조건을 확인해 해당 상황에서만 다음 작업을 실행한다.
     if saved in THEMES:
         st.session_state.theme = saved
 
 
+# 선택한 테마를 세션과 사용자 설정에 반영한다.
 def set_theme(name):
     """테마를 바꾸고 계정(Supabase 사용자 정보)에도 저장한다."""
     if name not in THEMES:
+        # 계산하거나 처리한 결과를 호출한 위치로 반환한다.
         return
 
     st.session_state.theme = name
     client = st.session_state.get("supabase_client")
 
+    # 조건을 확인해 해당 상황에서만 다음 작업을 실행한다.
     if client:
+        # 오류가 발생할 수 있는 작업을 실행하고 예외 상황에 대비한다.
         try:
             client.auth.update_user({"data": {"theme": name}})
+        # 앞선 작업에서 오류가 발생했을 때 예외 처리를 수행한다.
         except Exception:
             pass
