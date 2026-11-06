@@ -1,3 +1,4 @@
+# 저장된 일정을 날짜별 할 일 목록으로 보여 주는 페이지다.
 from datetime import date, timedelta
 
 import streamlit as st
