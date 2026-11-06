@@ -1,3 +1,4 @@
+# 주간·월간 일정 수와 완료율 등 통계 화면을 담당한다.
 import calendar as pycal
 import math
 from datetime import date, timedelta
